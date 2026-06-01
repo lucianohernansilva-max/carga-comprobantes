@@ -29,9 +29,9 @@ const GRUPOS = [
     dot: 'bg-indigo-500',
   },
   {
-    key: 'autonomo',
-    label: 'Autónomos',
-    match: (c) => c.condicionFiscal === 'autonomo',
+    key: 'asoc_civil',
+    label: 'Asoc. Civil / Fund.',
+    match: (c) => c.condicionFiscal === 'exento' || ['asoc','fundacion','fundación','civil','asociacion','asociación'].some(t => c.nombre?.toLowerCase().includes(t)),
     color: 'text-purple-700 bg-purple-50 border-purple-200',
     dot: 'bg-purple-500',
   },
@@ -49,7 +49,7 @@ const CHIPS = [
   { key: 'monotributista',       label: 'Monotributistas' },
   { key: 'responsable_inscripto',label: 'RI' },
   { key: 'sociedades',           label: 'Sociedades' },
-  { key: 'autonomo',             label: 'Autónomos' },
+  { key: 'asoc_civil',           label: 'Asoc. Civil' },
 ]
 
 // ─── Fila de cliente ──────────────────────────────────────────────────────────
