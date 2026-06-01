@@ -94,18 +94,33 @@ export const calcPatronSemestralFijo = ({ anio, mes, patronConfig }) => {
 }
 
 // ─── PATRON_DIAS_CIERRE ───────────────────────────────────────────────────────
-export const calcPatronDiasCierre = ({ anio, fechaCierreEjercicio, terminacion, patronConfig, tablaAfip }) => {
+export const calcPatronDiasCierre = ({ anio, fechaCierreEjercicio, terminacion, patronConfig, tablaAfip, calendario }) => {
   if (!fechaCierreEjercicio) return null
   const [mesCierre, diaCierre] = fechaCierreEjercicio.split('-').map(Number)
+  const offset = patronConfig.mesesDespues || 5
+
+  // Intentar con calendario exacto (indexado por año fiscal + mes de cierre)
+  if (patronConfig.tablaKey) {
+    const diaExacto = calendario?.[patronConfig.tablaKey]?.[String(anio)]?.[String(mesCierre)]?.[String(terminacion)]
+    if (diaExacto != null) {
+      const mesVenc     = mesCierre + offset
+      const anioVenc    = anio + Math.floor((mesVenc - 1) / 12)
+      const mesVencNorm = ((mesVenc - 1) % 12) + 1
+      const fecha = fechaSegura(anioVenc, mesVencNorm, Number(diaExacto))
+      return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: false }
+    }
+  }
+
+  // Fallback: día genérico de tablaAfip
   const fechaCierre = new Date(anio, mesCierre - 1, diaCierre)
-  let fechaBase = addMonths(fechaCierre, patronConfig.mesesDespues || 5)
+  let fechaBase = addMonths(fechaCierre, offset)
   if (patronConfig.tablaKey && tablaAfip?.[patronConfig.tablaKey]) {
     const dia = tablaAfip[patronConfig.tablaKey][terminacion]
               ?? tablaAfip[patronConfig.tablaKey][String(terminacion)]
               ?? 20
     fechaBase = fechaSegura(getYear(fechaBase), getMonth(fechaBase) + 1, dia)
   }
-  return { fecha: format(ajustarFinDeSemana(fechaBase), 'yyyy-MM-dd'), tentativo: false }
+  return { fecha: format(ajustarFinDeSemana(fechaBase), 'yyyy-MM-dd'), tentativo: true }
 }
 
 // ─── PATRON_FECHA_PROVINCIA ───────────────────────────────────────────────────
@@ -133,7 +148,7 @@ export const calcularFechaVencimiento = ({ patron, anio, mes, cliente, patronCon
     case PATRONES.PATRON_SEMESTRAL_FIJO:
       return calcPatronSemestralFijo({ anio, mes, patronConfig })
     case PATRONES.PATRON_DIAS_CIERRE:
-      return calcPatronDiasCierre({ anio, fechaCierreEjercicio: fechaCierre, terminacion: term, patronConfig, tablaAfip })
+      return calcPatronDiasCierre({ anio, fechaCierreEjercicio: fechaCierre, terminacion: term, patronConfig, tablaAfip, calendario })
     case PATRONES.PATRON_FECHA_PROVINCIA:
       return calcPatronFechaProvincia({ anio, mes, patronConfig })
     default:

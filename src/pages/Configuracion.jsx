@@ -7,11 +7,12 @@ import { getFeriadosExtra, saveFeriadosExtra, listarFeriadosAnio } from '../db/f
 import { useAuth } from '../auth/AuthContext.jsx'
 import CambiarPassword from '../components/CambiarPassword.jsx'
 
-const TABLA_KEYS = ['iva','autonomos','f931','lsd','casasParticulares','iibbCm','gananciasHumanas','bienesPersonales']
+const TABLA_KEYS = ['iva','autonomos','f931','lsd','casasParticulares','iibbCm','gananciasHumanas','bienesPersonales','gananciasSociedades','gananciasHumanasDDJJ']
 const TABLA_LABELS = {
   iva: 'IVA', autonomos: 'Autónomos', f931: 'F931', lsd: 'LSD',
   casasParticulares: 'Casas Particulares', iibbCm: 'IIBB CM',
-  gananciasHumanas: 'Ganancias Humanas', bienesPersonales: 'Bienes Personales',
+  gananciasHumanas: 'Ganancias PH (anticipos)', bienesPersonales: 'Bienes Personales',
+  gananciasSociedades: 'Ganancias Soc.', gananciasHumanasDDJJ: 'Ganancias PH DDJJ',
 }
 const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 

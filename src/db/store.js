@@ -263,6 +263,33 @@ const CALENDARIO_AFIP_2026 = {
     '11':{0:10,1:10,2:10,3:10,4:16,5:16,6:16,7:16,8:16,9:16},
     '12':{0:10,1:10,2:10,3:10,4:15,5:15,6:15,7:15,8:15,9:15},
   }},
+  // Ganancias Sociedades — DDJJ y Anticipos PJ — indexado por (año fiscal, mes de cierre)
+  // mesOffset=5: vencimiento = cierre + 5 meses. Filas "Enero..Dic 2026" son vencimientos;
+  // la clave es el mes de cierre correspondiente (ej: vence Ene 2026 → cierre Ago 2025).
+  gananciasSociedades: {
+    '2025': {
+      '8': {0:13,1:13,2:13,3:13,4:14,5:14,6:14,7:15,8:15,9:15}, // vence Ene 2026
+      '9': {0:13,1:13,2:13,3:13,4:18,5:18,6:18,7:19,8:19,9:19}, // vence Feb 2026
+      '10':{0:13,1:13,2:13,3:13,4:16,5:16,6:16,7:17,8:17,9:17}, // vence Mar 2026
+      '11':{0:13,1:13,2:13,3:13,4:14,5:14,6:14,7:15,8:15,9:15}, // vence Abr 2026
+      '12':{0:13,1:13,2:13,3:13,4:14,5:14,6:14,7:15,8:15,9:15}, // vence May 2026
+    },
+    '2026': {
+      '1': {0:16,1:16,2:16,3:16,4:17,5:17,6:17,7:18,8:18,9:18}, // vence Jun 2026
+      '2': {0:13,1:13,2:13,3:13,4:14,5:14,6:14,7:15,8:15,9:15}, // vence Jul 2026
+      '3': {0:13,1:13,2:13,3:13,4:14,5:14,6:14,7:18,8:18,9:18}, // vence Ago 2026
+      '4': {0:14,1:14,2:14,3:14,4:15,5:15,6:15,7:16,8:16,9:16}, // vence Sep 2026
+      '5': {0:13,1:13,2:13,3:13,4:14,5:14,6:14,7:15,8:15,9:15}, // vence Oct 2026
+      '6': {0:13,1:13,2:13,3:13,4:16,5:16,6:16,7:17,8:17,9:17}, // vence Nov 2026
+      '7': {0:14,1:14,2:14,3:14,4:15,5:15,6:15,7:16,8:16,9:16}, // vence Dic 2026
+    },
+  },
+  // Ganancias Humanas DDJJ — vence en junio del año siguiente al período fiscal
+  // PATRON_CUIT con mesOffset=0, mesesAplicables=[6]: el período ES el mes de junio
+  // Pago: 0-3→12, 4-6→16, 7-9→17 (datos oficiales AFIP junio 2026)
+  gananciasHumanasDDJJ: { '2026': {
+    '6': {0:12,1:12,2:12,3:12,4:16,5:16,6:16,7:17,8:17,9:17},
+  }},
   // Convenio Multilateral — grupos: 0-2 / 3-5 / 6-7 / 8-9
   iibbCm: { '2026': {
     '1': {0:15,1:15,2:15,3:16,4:16,5:16,6:19,7:19,8:20,9:20},
@@ -292,8 +319,10 @@ const DEFAULT_CONFIG = {
     lsd:                { 0: 9, 1:10, 2:11, 3:12, 4:13, 5:14, 6: 9, 7:10, 8:11, 9:12 },
     casasParticulares:  { 0: 7, 1: 8, 2: 9, 3:10, 4:11, 5: 7, 6: 8, 7: 9, 8:10, 9:11 },
     iibbCm:             { 0:17, 1:18, 2:19, 3:20, 4:21, 5:22, 6:23, 7:24, 8:25, 9:26 },
-    gananciasHumanas:   { 0:19, 1:19, 2:21, 3:21, 4:22, 5:22, 6:23, 7:23, 8:24, 9:24 },
-    bienesPersonales:   { 0:19, 1:19, 2:21, 3:21, 4:22, 5:22, 6:23, 7:23, 8:24, 9:24 },
+    gananciasHumanas:      { 0:19, 1:19, 2:21, 3:21, 4:22, 5:22, 6:23, 7:23, 8:24, 9:24 },
+    bienesPersonales:      { 0:19, 1:19, 2:21, 3:21, 4:22, 5:22, 6:23, 7:23, 8:24, 9:24 },
+    gananciasSociedades:   { 0:13, 1:14, 2:15, 3:16, 4:17, 5:18, 6:13, 7:14, 8:15, 9:16 },
+    gananciasHumanasDDJJ:  { 0:12, 1:12, 2:12, 3:12, 4:16, 5:16, 6:16, 7:17, 8:17, 9:17 },
   },
   // Calendario exacto publicado por AFIP: { tablaKey: { 'año': { 'mes_periodo': { 'terminacion': dia } } } }
   tablaAfipCalendario: CALENDARIO_AFIP_2026,

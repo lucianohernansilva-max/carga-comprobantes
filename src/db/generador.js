@@ -26,6 +26,8 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
         const fecha = addMonths(now, i)
         const anio  = getYear(fecha)
         const mes   = getMonth(fecha) + 1
+        // mesesAplicables restringe la generación a meses específicos (ej: DDJJ anual solo en mes de cierre)
+        if (configEfectivo.mesesAplicables && !configEfectivo.mesesAplicables.includes(mes)) continue
         const result = calcularFechaVencimiento({
           patron: tipo.patron, anio, mes, cliente, patronConfig: configEfectivo, appConfig: config,
         })
