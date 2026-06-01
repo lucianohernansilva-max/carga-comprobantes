@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Save, Plus, Trash2, Download, Upload, Settings, LogOut, CalendarDays } from 'lucide-react'
+import { Save, Plus, Trash2, Download, Upload, Settings, LogOut, CalendarDays, TableProperties } from 'lucide-react'
 import { getConfig, saveConfig, getTiposObligacion, saveTipoObligacion, deleteTipoObligacion, getClientes, getVencimientos, getObligacionesCliente } from '../db/store.js'
 import { PATRONES, PATRONES_LABELS } from '../db/fechas.js'
 import { useApp } from '../context/AppContext.jsx'
@@ -13,6 +13,7 @@ const TABLA_LABELS = {
   casasParticulares: 'Casas Particulares', iibbCm: 'IIBB CM',
   gananciasHumanas: 'Ganancias Humanas', bienesPersonales: 'Bienes Personales',
 }
+const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
 export default function Configuracion() {
   const { tipos, refresh } = useApp()
@@ -23,6 +24,8 @@ export default function Configuracion() {
   const [showNuevoTipo, setShowNuevoTipo] = useState(false)
   const [nuevoTipo, setNuevoTipo] = useState({ nombre:'', descripcion:'', periodicidad:'mensual', patron: PATRONES.PATRON_DIA_FIJO, configuracion: { dia: 20 } })
   const anioActual = new Date().getFullYear()
+  const [calTablaKey, setCalTablaKey] = useState('iva')
+  const [calAnio, setCalAnio]         = useState(anioActual)
   const [feriadosAnio, setFeriadosAnio] = useState(anioActual)
   const [feriadosExtra, setFeriadosExtra_] = useState(getFeriadosExtra)
   const [nuevoFeriado, setNuevoFeriado] = useState({ fecha: '', nombre: '' })
@@ -55,6 +58,25 @@ export default function Configuracion() {
         [key]: { ...c.tablaAfip[key], [digito]: Number(valor) }
       }
     }))
+  }
+
+  const setCalendario = (tablaKey, anio, mes, digito, valor) => {
+    const v = valor === '' ? undefined : Number(valor)
+    setConfig(c => {
+      const cal    = { ...(c.tablaAfipCalendario || {}) }
+      const byKey  = { ...(cal[tablaKey] || {}) }
+      const byAnio = { ...(byKey[String(anio)] || {}) }
+      const byMes  = { ...(byAnio[String(mes)] || {}) }
+      if (v == null || isNaN(v)) {
+        delete byMes[String(digito)]
+      } else {
+        byMes[String(digito)] = v
+      }
+      byAnio[String(mes)]  = byMes
+      byKey[String(anio)]  = byAnio
+      cal[tablaKey]        = byKey
+      return { ...c, tablaAfipCalendario: cal }
+    })
   }
 
   const crearTipo = () => {
@@ -167,6 +189,77 @@ export default function Configuracion() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Calendario AFIP mes a mes */}
+      <div className="card-padded space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <TableProperties size={15} className="text-primary" />
+          <p className="text-xs font-bold text-primary uppercase tracking-wide">Calendario AFIP — fechas exactas por mes</p>
+        </div>
+        <p className="text-xs text-gray-500">
+          Cargá las fechas exactas publicadas por AFIP para cada mes, tipo y terminación de CUIT.
+          Si un mes no tiene fecha cargada, la app usará la tabla genérica y mostrará "fecha tentativa".
+        </p>
+
+        {/* Selector tipo + año */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex gap-1 flex-wrap">
+            {TABLA_KEYS.map(k => (
+              <button key={k} onClick={() => setCalTablaKey(k)}
+                className={`px-2.5 py-1 rounded text-xs font-semibold ${calTablaKey === k ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {TABLA_LABELS[k]}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <button onClick={() => setCalAnio(a => a - 1)} className="btn btn-secondary btn-sm px-2">‹</button>
+            <span className="font-semibold text-sm text-gray-700 w-12 text-center">{calAnio}</span>
+            <button onClick={() => setCalAnio(a => a + 1)} className="btn btn-secondary btn-sm px-2">›</button>
+          </div>
+        </div>
+
+        {/* Grilla: filas = mes, columnas = terminación 0-9 */}
+        <div className="overflow-x-auto">
+          <table className="text-xs w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="text-left py-1 pr-3 text-gray-500 font-semibold w-12">Mes</th>
+                {[0,1,2,3,4,5,6,7,8,9].map(d => (
+                  <th key={d} className="text-center py-1 px-1 text-gray-500 font-semibold w-10">…{d}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {MESES_CORTOS.map((label, idx) => {
+                const mes = idx + 1
+                return (
+                  <tr key={mes} className="border-t border-gray-100">
+                    <td className="py-1 pr-3 text-gray-600 font-medium">{label}</td>
+                    {[0,1,2,3,4,5,6,7,8,9].map(d => {
+                      const val = config.tablaAfipCalendario?.[calTablaKey]?.[String(calAnio)]?.[String(mes)]?.[String(d)]
+                      return (
+                        <td key={d} className="py-0.5 px-0.5">
+                          <input
+                            type="number" min="1" max="31"
+                            className={`w-10 text-center text-xs rounded border py-1 ${val != null ? 'border-primary bg-blue-50 font-semibold' : 'border-gray-200 bg-white text-gray-400'}`}
+                            value={val ?? ''}
+                            placeholder="—"
+                            onChange={e => setCalendario(calTablaKey, calAnio, mes, d, e.target.value)}
+                          />
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-gray-400">
+          Celdas en azul = fecha exacta cargada (vencimiento definitivo). Celdas vacías = se usará la tabla genérica (vencimiento tentativo).
+          Guardá con el botón al pie de la página.
+        </p>
       </div>
 
       {/* Tipos custom */}

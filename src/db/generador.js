@@ -8,9 +8,8 @@ import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesClient
 
 // Genera vencimientos para un cliente desde hoy hasta horizonte meses
 export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = {}) => {
-  const config    = getConfig()
-  const tablaAfip = config.tablaAfip
-  const now       = desde ? new Date(desde) : new Date()
+  const config = getConfig()
+  const now    = desde ? new Date(desde) : new Date()
   const obligaciones = getObligacionesCliente(cliente.id).filter(o => o.activa)
 
   const nuevos = []
@@ -27,11 +26,11 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
         const fecha = addMonths(now, i)
         const anio  = getYear(fecha)
         const mes   = getMonth(fecha) + 1
-        const fvRaw = calcularFechaVencimiento({
-          patron: tipo.patron, anio, mes, cliente, config: configEfectivo, tablaAfip,
+        const result = calcularFechaVencimiento({
+          patron: tipo.patron, anio, mes, cliente, patronConfig: configEfectivo, appConfig: config,
         })
-        if (!fvRaw) continue
-        const fv = ajustarDiaHabil(fvRaw)
+        if (!result) continue
+        const fv = ajustarDiaHabil(result.fecha)
         const periodo = `${anio}-${String(mes).padStart(2, '0')}`
         nuevos.push({
           clienteId:          cliente.id,
@@ -43,6 +42,7 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
           notas:              '',
           silenciado:         false,
           ajustadoManualmente: false,
+          tentativo:          result.tentativo,
         })
       }
     }
@@ -53,11 +53,11 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
         const fecha = addMonths(now, i)
         const anio  = getYear(fecha)
         const mes   = getMonth(fecha) + 1
-        const fvRaw = calcularFechaVencimiento({
-          patron: tipo.patron, anio, mes, cliente, config: configEfectivo, tablaAfip,
+        const result = calcularFechaVencimiento({
+          patron: tipo.patron, anio, mes, cliente, patronConfig: configEfectivo, appConfig: config,
         })
-        if (!fvRaw) continue
-        const fv = ajustarDiaHabil(fvRaw)
+        if (!result) continue
+        const fv = ajustarDiaHabil(result.fecha)
         const periodo = `${anio}-${String(mes).padStart(2, '0')}`
         nuevos.push({
           clienteId:          cliente.id,
@@ -69,6 +69,7 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
           notas:              '',
           silenciado:         false,
           ajustadoManualmente: false,
+          tentativo:          result.tentativo,
         })
       }
     }
@@ -76,23 +77,23 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
     // Para DDJJ anual (Ganancias PJ, Bienes Personales):
     // Solo generar una vez para el ejercicio que corresponde
     if (tipo.patron === PATRONES.PATRON_DIAS_CIERRE) {
-      // Generar para los próximos 2 ejercicios
       for (let y = 0; y <= 1; y++) {
         const anio = getYear(now) + y
-        const fv = calcularFechaVencimiento({
-          patron: tipo.patron, anio, mes: 1, cliente, config: configEfectivo, tablaAfip,
+        const result = calcularFechaVencimiento({
+          patron: tipo.patron, anio, mes: 1, cliente, patronConfig: configEfectivo, appConfig: config,
         })
-        if (!fv) continue
+        if (!result) continue
         nuevos.push({
           clienteId:          cliente.id,
           tipoObligacionId:   tipo.id,
           obligacionClienteId: obl.id,
-          fecha:              fv,
+          fecha:              result.fecha,
           periodo:            `${anio}`,
           estado:             'pendiente',
           notas:              '',
           silenciado:         false,
           ajustadoManualmente: false,
+          tentativo:          result.tentativo,
         })
       }
     }

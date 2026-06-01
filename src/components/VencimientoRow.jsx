@@ -63,6 +63,9 @@ export default function VencimientoRow({ v, onUpdate }) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-900 truncate">{v.tipo?.nombre}</p>
           <p className="text-xs text-gray-500 truncate">{v.cliente?.nombre} · {v.periodo}</p>
+          {v.tentativo && (
+            <p className="text-xs text-warning font-medium mt-0.5">⚠ Fecha tentativa — verificar calendario AFIP</p>
+          )}
         </div>
 
         {/* Estado + chevron */}

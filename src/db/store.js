@@ -182,9 +182,19 @@ const DEFAULT_CONFIG = {
     gananciasHumanas:   { 0:19, 1:19, 2:21, 3:21, 4:22, 5:22, 6:23, 7:23, 8:24, 9:24 },
     bienesPersonales:   { 0:19, 1:19, 2:21, 3:21, 4:22, 5:22, 6:23, 7:23, 8:24, 9:24 },
   },
+  // Calendario exacto publicado por AFIP: { tablaKey: { 'año': { 'mes_periodo': { 'terminacion': dia } } } }
+  tablaAfipCalendario: {},
 }
 
-export const getConfig  = () => ({ ...DEFAULT_CONFIG, ...(load(KEYS.config) || {}) })
+export const getConfig  = () => {
+  const saved = load(KEYS.config) || {}
+  return {
+    ...DEFAULT_CONFIG,
+    ...saved,
+    tablaAfip: { ...DEFAULT_CONFIG.tablaAfip, ...(saved.tablaAfip || {}) },
+    tablaAfipCalendario: saved.tablaAfipCalendario || {},
+  }
+}
 export const saveConfig = (data) => { persist(KEYS.config, { ...(load(KEYS.config) || {}), ...data }) }
 
 // ─── inicialización ───────────────────────────────────────────────────────────
