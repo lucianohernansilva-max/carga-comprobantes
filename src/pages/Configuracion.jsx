@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Save, Plus, Trash2, Download, Upload, Settings, LogOut, CalendarDays, TableProperties } from 'lucide-react'
+import { Save, Plus, Trash2, Download, Upload, Settings, LogOut, CalendarDays, TableProperties, RefreshCw } from 'lucide-react'
 import { getConfig, saveConfig, getTiposObligacion, saveTipoObligacion, deleteTipoObligacion, getClientes, getVencimientos, getObligacionesCliente } from '../db/store.js'
 import { PATRONES, PATRONES_LABELS } from '../db/fechas.js'
 import { useApp } from '../context/AppContext.jsx'
 import { getFeriadosExtra, saveFeriadosExtra, listarFeriadosAnio } from '../db/feriados.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import CambiarPassword from '../components/CambiarPassword.jsx'
+import { generarVencimientosTodos } from '../db/generador.js'
 
 const TABLA_KEYS = ['iva','autonomos','f931','lsd','casasParticulares','iibbCm','gananciasHumanas','bienesPersonales','gananciasSociedades','gananciasHumanasDDJJ']
 const TABLA_LABELS = {
@@ -21,7 +22,8 @@ export default function Configuracion() {
   const { onLogout }       = useAuth()
   const [config, setConfig] = useState(getConfig())
   const [tablaKey, setTablaKey] = useState('iva')
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved]         = useState(false)
+  const [regenerando, setRegenerando] = useState(false)
   const [showNuevoTipo, setShowNuevoTipo] = useState(false)
   const [nuevoTipo, setNuevoTipo] = useState({ nombre:'', descripcion:'', periodicidad:'mensual', patron: PATRONES.PATRON_DIA_FIJO, configuracion: { dia: 20 } })
   const anioActual = new Date().getFullYear()
@@ -401,6 +403,31 @@ export default function Configuracion() {
           className="btn btn-danger btn-sm"
         >
           <LogOut size={13} /> Salir
+        </button>
+      </div>
+
+      {/* Regenerar vencimientos */}
+      <div className="card-padded space-y-2">
+        <p className="text-xs font-bold text-primary uppercase tracking-wide">Regenerar vencimientos</p>
+        <p className="text-xs text-gray-500">
+          Genera vencimientos faltantes para todos los clientes activos usando la configuración actual.
+          No borra ni modifica los vencimientos ya existentes.
+        </p>
+        <button
+          onClick={() => {
+            if (!confirm('¿Regenerar vencimientos de todos los clientes? Esto puede tardar unos segundos.')) return
+            setRegenerando(true)
+            setTimeout(() => {
+              generarVencimientosTodos(getClientes())
+              refresh()
+              setRegenerando(false)
+            }, 50)
+          }}
+          disabled={regenerando}
+          className="btn btn-outline w-full"
+        >
+          <RefreshCw size={14} className={regenerando ? 'animate-spin' : ''} />
+          {regenerando ? 'Regenerando…' : 'Regenerar vencimientos de todos los clientes'}
         </button>
       </div>
 
