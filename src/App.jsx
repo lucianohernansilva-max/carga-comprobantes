@@ -12,6 +12,7 @@ import Calendario from './pages/Calendario.jsx'
 import Estadisticas from './pages/Estadisticas.jsx'
 import Notificaciones from './pages/Notificaciones.jsx'
 import CalculadoraMonotributo from './pages/CalculadoraMonotributo.jsx'
+import Comprobantes from './pages/Comprobantes.jsx'
 import Login from './pages/Login.jsx'
 import SetupPassword from './pages/SetupPassword.jsx'
 import { AppProvider } from './context/AppContext.jsx'
@@ -33,6 +34,7 @@ function Inner() {
         <Route path="/historial"              element={<Historial />} />
         <Route path="/notificaciones"         element={<Notificaciones />} />
         <Route path="/calculadora"            element={<CalculadoraMonotributo />} />
+        <Route path="/comprobantes"           element={<Comprobantes />} />
         <Route path="/configuracion"          element={<Configuracion />} />
       </Routes>
     </Layout>
