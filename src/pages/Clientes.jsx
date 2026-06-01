@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, UserCheck, UserX, Users } from 'lucide-react'
+import { Plus, Search, Upload, Users } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
+import ImportarClientesModal from '../components/ImportarClientesModal.jsx'
 
 const CONDICION_LABELS = {
   monotributista:     'Monotributista',
@@ -18,8 +19,9 @@ const CONDICION_COLORS = {
 }
 
 export default function Clientes() {
-  const { clientes, vencimientos } = useApp()
-  const [busqueda, setBusqueda] = useState('')
+  const { clientes, vencimientos, refresh } = useApp()
+  const [busqueda, setBusqueda]         = useState('')
+  const [modalImportar, setModalImportar] = useState(false)
 
   const filtrados = clientes.filter(c => {
     if (!busqueda) return true
@@ -43,14 +45,26 @@ export default function Clientes() {
 
   return (
     <div className="p-5 max-w-3xl">
+      {modalImportar && (
+        <ImportarClientesModal
+          onClose={() => setModalImportar(false)}
+          onImportado={refresh}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Clientes</h1>
           <p className="text-sm text-gray-500">{clientes.length} cliente{clientes.length !== 1 ? 's' : ''} registrado{clientes.length !== 1 ? 's' : ''}</p>
         </div>
-        <Link to="/clientes/nuevo" className="btn btn-primary">
-          <Plus size={15} /> Nuevo
-        </Link>
+        <div className="flex gap-2">
+          <button onClick={() => setModalImportar(true)} className="btn btn-outline btn-sm">
+            <Upload size={13} /> Importar Excel
+          </button>
+          <Link to="/clientes/nuevo" className="btn btn-primary btn-sm">
+            <Plus size={14} /> Nuevo
+          </Link>
+        </div>
       </div>
 
       {/* Búsqueda */}
