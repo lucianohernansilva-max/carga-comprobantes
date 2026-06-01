@@ -3,6 +3,7 @@
 
 import { addMonths, format, getMonth, getYear } from 'date-fns'
 import { calcularFechaVencimiento, PATRONES } from './fechas.js'
+import { ajustarDiaHabil } from './feriados.js'
 import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion } from './store.js'
 
 // Genera vencimientos para un cliente desde hoy hasta horizonte meses
@@ -26,10 +27,11 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
         const fecha = addMonths(now, i)
         const anio  = getYear(fecha)
         const mes   = getMonth(fecha) + 1
-        const fv = calcularFechaVencimiento({
+        const fvRaw = calcularFechaVencimiento({
           patron: tipo.patron, anio, mes, cliente, config: configEfectivo, tablaAfip,
         })
-        if (!fv) continue
+        if (!fvRaw) continue
+        const fv = ajustarDiaHabil(fvRaw)
         const periodo = `${anio}-${String(mes).padStart(2, '0')}`
         nuevos.push({
           clienteId:          cliente.id,
@@ -51,10 +53,11 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
         const fecha = addMonths(now, i)
         const anio  = getYear(fecha)
         const mes   = getMonth(fecha) + 1
-        const fv = calcularFechaVencimiento({
+        const fvRaw = calcularFechaVencimiento({
           patron: tipo.patron, anio, mes, cliente, config: configEfectivo, tablaAfip,
         })
-        if (!fv) continue
+        if (!fvRaw) continue
+        const fv = ajustarDiaHabil(fvRaw)
         const periodo = `${anio}-${String(mes).padStart(2, '0')}`
         nuevos.push({
           clienteId:          cliente.id,

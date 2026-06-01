@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Save, Plus, Trash2, Download, Upload, Settings, LogOut } from 'lucide-react'
+import { useState } from 'react'
+import { Save, Plus, Trash2, Download, Upload, Settings, LogOut, CalendarDays } from 'lucide-react'
 import { getConfig, saveConfig, getTiposObligacion, saveTipoObligacion, deleteTipoObligacion, getClientes, getVencimientos, getObligacionesCliente } from '../db/store.js'
 import { PATRONES, PATRONES_LABELS } from '../db/fechas.js'
 import { useApp } from '../context/AppContext.jsx'
+import { getFeriadosExtra, saveFeriadosExtra, listarFeriadosAnio } from '../db/feriados.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import CambiarPassword from '../components/CambiarPassword.jsx'
 
@@ -21,6 +22,23 @@ export default function Configuracion() {
   const [saved, setSaved] = useState(false)
   const [showNuevoTipo, setShowNuevoTipo] = useState(false)
   const [nuevoTipo, setNuevoTipo] = useState({ nombre:'', descripcion:'', periodicidad:'mensual', patron: PATRONES.PATRON_DIA_FIJO, configuracion: { dia: 20 } })
+  const anioActual = new Date().getFullYear()
+  const [feriadosAnio, setFeriadosAnio] = useState(anioActual)
+  const [feriadosExtra, setFeriadosExtra_] = useState(getFeriadosExtra)
+  const [nuevoFeriado, setNuevoFeriado] = useState({ fecha: '', nombre: '' })
+
+  const agregarFeriado = () => {
+    if (!nuevoFeriado.fecha || !nuevoFeriado.nombre) return
+    const updated = [...feriadosExtra, nuevoFeriado]
+    saveFeriadosExtra(updated)
+    setFeriadosExtra_(updated)
+    setNuevoFeriado({ fecha: '', nombre: '' })
+  }
+  const quitarFeriado = (idx) => {
+    const updated = feriadosExtra.filter((_, i) => i !== idx)
+    saveFeriadosExtra(updated)
+    setFeriadosExtra_(updated)
+  }
 
   const saveAndNotify = () => {
     saveConfig(config)
@@ -229,6 +247,50 @@ export default function Configuracion() {
           </label>
         </div>
         <p className="text-xs text-gray-400">El backup incluye todos los clientes, vencimientos y configuración.</p>
+      </div>
+
+      {/* Feriados nacionales */}
+      <div className="card-padded space-y-3">
+        <div className="flex items-center gap-2">
+          <CalendarDays size={15} className="text-primary" />
+          <p className="text-xs font-bold text-primary uppercase tracking-wide">Feriados nacionales</p>
+        </div>
+
+        {/* Navegador de año */}
+        <div className="flex items-center gap-3">
+          <button onClick={() => setFeriadosAnio(a => a - 1)} className="btn btn-secondary btn-sm px-2">‹</button>
+          <span className="font-semibold text-sm text-gray-700">{feriadosAnio}</span>
+          <button onClick={() => setFeriadosAnio(a => a + 1)} className="btn btn-secondary btn-sm px-2">›</button>
+        </div>
+
+        {/* Lista de feriados del año */}
+        <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+          {listarFeriadosAnio(feriadosAnio).map((f, i) => (
+            <div key={i} className="flex items-center justify-between px-3 py-1.5 text-xs hover:bg-gray-50">
+              <span className="text-gray-600 font-mono">{f.fecha}</span>
+              <span className="text-gray-800 flex-1 mx-3">{f.nombre}</span>
+              {f.tipo === 'extra' ? (
+                <button onClick={() => quitarFeriado(feriadosExtra.findIndex(e => e.fecha === f.fecha && e.nombre === f.nombre))}
+                  className="text-danger hover:text-red-700"><Trash2 size={12} /></button>
+              ) : (
+                <span className="badge bg-blue-100 text-blue-600 text-xs">Nacional</span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Agregar feriado extra */}
+        <p className="text-xs font-semibold text-gray-600">Agregar feriado adicional o puente</p>
+        <div className="flex gap-2">
+          <input type="date" className="form-input text-xs py-1.5 flex-1"
+            value={nuevoFeriado.fecha} onChange={e => setNuevoFeriado(f => ({ ...f, fecha: e.target.value }))} />
+          <input className="form-input text-xs py-1.5 flex-1"
+            placeholder="Nombre del feriado"
+            value={nuevoFeriado.nombre} onChange={e => setNuevoFeriado(f => ({ ...f, nombre: e.target.value }))} />
+          <button onClick={agregarFeriado} disabled={!nuevoFeriado.fecha || !nuevoFeriado.nombre}
+            className="btn btn-primary btn-sm px-3"><Plus size={13} /></button>
+        </div>
+        <p className="text-xs text-gray-400">Los feriados se usan para ajustar automáticamente las fechas de vencimiento al día hábil anterior.</p>
       </div>
 
       {/* Seguridad */}

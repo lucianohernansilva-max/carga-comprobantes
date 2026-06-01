@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { format, parseISO, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Download, Filter } from 'lucide-react'
+import { Download, FileText } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useApp } from '../context/AppContext.jsx'
 import VencimientoRow from '../components/VencimientoRow.jsx'
+import { generarReporteMensual } from '../db/reportePDF.js'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const ESTADOS_OPTS = ['','pendiente','en_proceso','presentado','pagado','no_aplica','vencido']
@@ -20,7 +21,7 @@ const ESTADO_COLORS_XLSX = {
 }
 
 export default function Vencimientos() {
-  const { vencimientos, clientes, tipos, refresh } = useApp()
+  const { vencimientos, clientes, tipos, config, refresh } = useApp()
   const now     = new Date()
   const [mes, setMes]           = useState(now.getMonth())   // 0-based
   const [anio, setAnio]         = useState(now.getFullYear())
@@ -55,6 +56,10 @@ export default function Vencimientos() {
     XLSX.writeFile(wb, `Vencimientos_${MESES[mes]}_${anio}.xlsx`)
   }
 
+  const exportarPDF = () => {
+    generarReporteMensual({ vencimientos: filtered, mes, anio, config })
+  }
+
   const navMes = (delta) => {
     let m = mes + delta, a = anio
     if (m < 0)  { m = 11; a-- }
@@ -66,9 +71,14 @@ export default function Vencimientos() {
     <div className="p-5 max-w-4xl">
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-xl font-bold text-gray-900">Vencimientos</h1>
-        <button onClick={exportar} className="btn btn-outline btn-sm">
-          <Download size={13} /> Exportar Excel
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportarPDF} className="btn btn-outline btn-sm">
+            <FileText size={13} /> PDF
+          </button>
+          <button onClick={exportar} className="btn btn-outline btn-sm">
+            <Download size={13} /> Excel
+          </button>
+        </div>
       </div>
 
       {/* Navegación de mes */}

@@ -8,6 +8,10 @@ import ClienteDetalle from './pages/ClienteDetalle.jsx'
 import Vencimientos from './pages/Vencimientos.jsx'
 import Historial from './pages/Historial.jsx'
 import Configuracion from './pages/Configuracion.jsx'
+import Calendario from './pages/Calendario.jsx'
+import Estadisticas from './pages/Estadisticas.jsx'
+import Notificaciones from './pages/Notificaciones.jsx'
+import CalculadoraMonotributo from './pages/CalculadoraMonotributo.jsx'
 import Login from './pages/Login.jsx'
 import SetupPassword from './pages/SetupPassword.jsx'
 import { AppProvider } from './context/AppContext.jsx'
@@ -24,7 +28,11 @@ function Inner() {
         <Route path="/clientes/:id"           element={<ClienteDetalle />} />
         <Route path="/clientes/:id/editar"    element={<ClienteForm />} />
         <Route path="/vencimientos"           element={<Vencimientos />} />
+        <Route path="/calendario"             element={<Calendario />} />
+        <Route path="/estadisticas"           element={<Estadisticas />} />
         <Route path="/historial"              element={<Historial />} />
+        <Route path="/notificaciones"         element={<Notificaciones />} />
+        <Route path="/calculadora"            element={<CalculadoraMonotributo />} />
         <Route path="/configuracion"          element={<Configuracion />} />
       </Routes>
     </Layout>
@@ -33,17 +41,10 @@ function Inner() {
 
 function AppGate() {
   const { autenticado, passwordConfigurada } = useAuth()
-
   useEffect(() => { initSeed() }, [])
-
   if (!passwordConfigurada) return <SetupPassword />
   if (!autenticado)         return <Login />
-
-  return (
-    <AppProvider>
-      <Inner />
-    </AppProvider>
-  )
+  return <AppProvider><Inner /></AppProvider>
 }
 
 export default function App() {

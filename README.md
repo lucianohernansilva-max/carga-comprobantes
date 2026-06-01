@@ -137,6 +137,100 @@ Agregar en `package.json`:
 }
 ```
 
+---
+
+## Acceso remoto con Cloudflare Tunnel (Windows)
+
+Con Cloudflare Tunnel podés acceder a la app desde cualquier dispositivo con internet (celular, otra PC, etc.) sin abrir puertos en el router ni depender de la IP de tu casa. **La PC tiene que estar encendida.**
+
+### Paso 1 — Instalar `cloudflared` en Windows
+
+1. Descargar el instalador desde:
+   `https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi`
+2. Ejecutar el `.msi` y seguir el instalador.
+3. Verificar en PowerShell:
+   ```powershell
+   cloudflared --version
+   ```
+
+### Paso 2 — Correr la app localmente
+
+En la carpeta del proyecto, abrir PowerShell:
+```powershell
+npm install
+npm run dev
+```
+La app queda escuchando en `http://localhost:5173`.
+
+### Paso 3 — Crear el túnel (modo rápido, sin cuenta)
+
+En otra ventana de PowerShell:
+```powershell
+cloudflared tunnel --url http://localhost:5173
+```
+
+Cloudflare te devuelve una URL del tipo:
+```
+https://algo-random-aqui.trycloudflare.com
+```
+Esa URL funciona desde cualquier dispositivo con internet. **La URL cambia cada vez que reiniciás el túnel.**
+
+### Paso 4 — URL fija (requiere cuenta gratuita en Cloudflare)
+
+Para tener siempre la misma URL (ej: `vencimientos.tunombre.com`):
+
+1. Crear cuenta gratuita en `https://cloudflare.com`
+2. Autenticarse:
+   ```powershell
+   cloudflared tunnel login
+   ```
+3. Crear el túnel con nombre fijo:
+   ```powershell
+   cloudflared tunnel create vencimientosfi
+   ```
+4. Crear el archivo de configuración `C:\Users\TuUsuario\.cloudflared\config.yml`:
+   ```yaml
+   tunnel: vencimientosfi
+   credentials-file: C:\Users\TuUsuario\.cloudflared\<id-del-tunnel>.json
+   ingress:
+     - hostname: vencimientos.tudominio.com
+       service: http://localhost:5173
+     - service: http_status:404
+   ```
+5. Enrutar el dominio:
+   ```powershell
+   cloudflared tunnel route dns vencimientosfi vencimientos.tudominio.com
+   ```
+6. Iniciar el túnel:
+   ```powershell
+   cloudflared tunnel run vencimientosfi
+   ```
+
+### Paso 5 — Arrancar automáticamente con Windows
+
+Para que el túnel y la app arranquen solos al encender la PC:
+
+1. Instalar `cloudflared` como servicio de Windows:
+   ```powershell
+   cloudflared service install
+   ```
+2. Crear un acceso directo en la carpeta de inicio de Windows
+   (`shell:startup`) con el comando:
+   ```
+   cmd /c "cd /d C:\ruta\a\vencimientosfi && npm run dev"
+   ```
+
+### Seguridad con Cloudflare Access (opcional pero recomendado)
+
+Cloudflare ofrece una capa extra de autenticación por email antes de mostrar la app:
+1. En el dashboard de Cloudflare → **Zero Trust** → **Access** → **Applications**
+2. Crear una aplicación del tipo "Self-hosted" apuntando a tu URL
+3. Configurar política: solo el email del contador puede acceder
+
+Esto agrega autenticación por link mágico **además** de la contraseña de la app.
+
+---
+
 ## Licencia
 
 Uso privado.

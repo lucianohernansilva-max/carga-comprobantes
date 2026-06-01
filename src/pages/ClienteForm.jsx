@@ -21,6 +21,7 @@ const EMPTY = {
   fechaCierreEjercicio: '', actividadPrincipal: '', jurisdiccionesIIBB: [],
   liquidaAnticiposGanancias: false, tieneEmpleados: false, cantidadEmpleados: '',
   notas: '', activo: true,
+  email: '', whatsapp: '',
 }
 
 export default function ClienteForm() {
@@ -180,6 +181,20 @@ export default function ClienteForm() {
           <div>
             <label className="form-label">Actividad principal</label>
             <input className="form-input" value={form.actividadPrincipal} onChange={e => set('actividadPrincipal', e.target.value)} />
+          </div>
+
+          {/* Contacto */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="form-label">Email de contacto</label>
+              <input type="email" className="form-input" value={form.email || ''} placeholder="correo@ejemplo.com"
+                onChange={e => set('email', e.target.value)} />
+            </div>
+            <div>
+              <label className="form-label">WhatsApp</label>
+              <input type="tel" className="form-input" value={form.whatsapp || ''} placeholder="3512345678"
+                onChange={e => set('whatsapp', e.target.value)} />
+            </div>
           </div>
         </div>
 
