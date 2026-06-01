@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Save, Plus, Trash2, Download, Upload, Settings } from 'lucide-react'
+import { Save, Plus, Trash2, Download, Upload, Settings, LogOut } from 'lucide-react'
 import { getConfig, saveConfig, getTiposObligacion, saveTipoObligacion, deleteTipoObligacion, getClientes, getVencimientos, getObligacionesCliente } from '../db/store.js'
 import { PATRONES, PATRONES_LABELS } from '../db/fechas.js'
 import { useApp } from '../context/AppContext.jsx'
+import { useAuth } from '../auth/AuthContext.jsx'
+import CambiarPassword from '../components/CambiarPassword.jsx'
 
 const TABLA_KEYS = ['iva','autonomos','f931','lsd','casasParticulares','iibbCm','gananciasHumanas','bienesPersonales']
 const TABLA_LABELS = {
@@ -13,6 +15,7 @@ const TABLA_LABELS = {
 
 export default function Configuracion() {
   const { tipos, refresh } = useApp()
+  const { onLogout }       = useAuth()
   const [config, setConfig] = useState(getConfig())
   const [tablaKey, setTablaKey] = useState('iva')
   const [saved, setSaved] = useState(false)
@@ -226,6 +229,23 @@ export default function Configuracion() {
           </label>
         </div>
         <p className="text-xs text-gray-400">El backup incluye todos los clientes, vencimientos y configuración.</p>
+      </div>
+
+      {/* Seguridad */}
+      <CambiarPassword />
+
+      {/* Cerrar sesión */}
+      <div className="card-padded border-red-200 bg-red-50 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-gray-800">Cerrar sesión</p>
+          <p className="text-xs text-gray-500">La próxima vez que abras la app se pedirá la contraseña.</p>
+        </div>
+        <button
+          onClick={() => { if (confirm('¿Cerrar sesión?')) onLogout() }}
+          className="btn btn-danger btn-sm"
+        >
+          <LogOut size={13} /> Salir
+        </button>
       </div>
 
       {/* Guardar */}

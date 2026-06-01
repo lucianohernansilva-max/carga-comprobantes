@@ -8,7 +8,10 @@ import ClienteDetalle from './pages/ClienteDetalle.jsx'
 import Vencimientos from './pages/Vencimientos.jsx'
 import Historial from './pages/Historial.jsx'
 import Configuracion from './pages/Configuracion.jsx'
+import Login from './pages/Login.jsx'
+import SetupPassword from './pages/SetupPassword.jsx'
 import { AppProvider } from './context/AppContext.jsx'
+import { AuthProvider, useAuth } from './auth/AuthContext.jsx'
 import { initSeed } from './db/seed.js'
 
 function Inner() {
@@ -28,11 +31,25 @@ function Inner() {
   )
 }
 
-export default function App() {
+function AppGate() {
+  const { autenticado, passwordConfigurada } = useAuth()
+
   useEffect(() => { initSeed() }, [])
+
+  if (!passwordConfigurada) return <SetupPassword />
+  if (!autenticado)         return <Login />
+
   return (
     <AppProvider>
       <Inner />
     </AppProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppGate />
+    </AuthProvider>
   )
 }

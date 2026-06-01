@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, CalendarClock, History, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarClock, History, Settings, LogOut } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
+import { useAuth } from '../auth/AuthContext.jsx'
 import { differenceInDays, parseISO } from 'date-fns'
 
 const NAV = [
@@ -13,6 +14,7 @@ const NAV = [
 
 export default function Layout({ children }) {
   const { vencimientos } = useApp()
+  const { onLogout }     = useAuth()
   const hoy = new Date().toISOString().slice(0, 10)
   const urgentes = vencimientos.filter(v =>
     v.estado === 'pendiente' && v.fecha <= hoy
@@ -61,12 +63,23 @@ export default function Layout({ children }) {
         </nav>
 
         {proximos7 > 0 && (
-          <div className="mx-3 mb-3 p-3 bg-warning/10 rounded-lg border border-warning/30">
+          <div className="mx-3 mb-2 p-3 bg-warning/10 rounded-lg border border-warning/30">
             <p className="text-xs font-semibold text-warning">
               ⚠ {proximos7} vencimiento{proximos7 > 1 ? 's' : ''} en 7 días
             </p>
           </div>
         )}
+
+        {/* Cerrar sesión */}
+        <div className="px-2 pb-3">
+          <button
+            onClick={() => { if (confirm('¿Cerrar sesión?')) onLogout() }}
+            className="sidebar-item w-full text-gray-400 hover:text-danger hover:bg-red-50"
+          >
+            <LogOut size={15} />
+            <span className="text-xs">Cerrar sesión</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main */}
