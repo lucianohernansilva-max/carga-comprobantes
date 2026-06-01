@@ -22,10 +22,22 @@ export const PATRONES_LABELS = {
   PATRON_PERSONALIZADO:  'Fechas personalizadas',
 }
 
-// Extrae terminación CUIT (último dígito del CUIT formateado "20-12345678-9" → 9)
+// Extrae terminación CUIT — el dígito verificador, último grupo tras el último guión.
+// Formato canónico AFIP: XX-XXXXXXXX-X  (ej: 20-25678901-4 → 4)
+// También soporta: "20123456784" (11 dígitos sin guiones) → 4
 export const terminacionCuit = (cuit) => {
   if (!cuit) return 0
-  const digits = String(cuit).replace(/\D/g, '')
+  const str = String(cuit).trim()
+
+  // Caso 1 — formato canónico con guiones: XX-XXXXXXXX-X
+  const partes = str.split('-')
+  if (partes.length === 3) {
+    const verif = partes[2].trim().replace(/\D/g, '')
+    if (verif.length > 0) return parseInt(verif[0], 10)
+  }
+
+  // Caso 2 — sin guiones, 11 dígitos: el último es el verificador
+  const digits = str.replace(/\D/g, '')
   return parseInt(digits[digits.length - 1] || '0', 10)
 }
 
@@ -70,7 +82,7 @@ export const calcPatronCuit = ({ anio, mes, terminacion, patronConfig, tablaAfip
 
   // ── Fallback: día genérico de la tabla anual ─────────────────────────────
   const tabla = tablaAfip?.[tablaKey] || {}
-  const dia   = tabla[terminacion] ?? tabla[String(terminacion)] ?? 20
+  const dia   = tabla[String(terminacion)] ?? 20
   const mesVenc     = mes + offset
   const anioVenc    = anio + Math.floor((mesVenc - 1) / 12)
   const mesVencNorm = ((mesVenc - 1) % 12) + 1
