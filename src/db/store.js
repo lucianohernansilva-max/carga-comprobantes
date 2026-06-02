@@ -163,6 +163,37 @@ export const deleteVencimiento = (id) => {
   persist(KEYS.vencimientos, (load(KEYS.vencimientos) || []).filter(v => v.id !== id))
 }
 
+// Desactiva obligaciones de IIBB Local para monotributistas y elimina sus vencimientos pendientes/vencidos.
+// En Chaco, el IIBB está incluido en la cuota mensual del Monotributo (Régimen Unificado).
+// Es idempotente: puede llamarse múltiples veces sin efectos secundarios.
+export const limpiarIIBBMonotributistas = () => {
+  const clienteIds = new Set(
+    getClientes().filter(c => c.condicionFiscal === 'monotributista').map(c => c.id)
+  )
+  if (clienteIds.size === 0) return 0
+
+  // Desactivar obligaciones iibb-local
+  const obls = load(KEYS.obligaciones) || []
+  const oblsNuevos = obls.map(o =>
+    o.tipoObligacionId === 'iibb-local' && clienteIds.has(o.clienteId) && o.activa
+      ? { ...o, activa: false }
+      : o
+  )
+  const oblsCambiaron = oblsNuevos.some((o, i) => o !== obls[i])
+  if (oblsCambiaron) persist(KEYS.obligaciones, oblsNuevos)
+
+  // Eliminar vencimientos pendientes/vencidos de iibb-local
+  const venc = load(KEYS.vencimientos) || []
+  const vencNuevos = venc.filter(v =>
+    !(v.tipoObligacionId === 'iibb-local' &&
+      clienteIds.has(v.clienteId) &&
+      ['pendiente', 'vencido'].includes(v.estado))
+  )
+  if (vencNuevos.length !== venc.length) persist(KEYS.vencimientos, vencNuevos)
+
+  return clienteIds.size
+}
+
 // Recalcula estado VENCIDO para los que pasaron la fecha sin acción
 export const actualizarEstadosVencidos = () => {
   const hoy  = new Date().toISOString().slice(0, 10)

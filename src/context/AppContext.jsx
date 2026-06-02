@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import {
   getClientes, getVencimientos, getTiposObligacion, getObligacionesCliente,
-  getConfig, subscribe, actualizarEstadosVencidos,
+  getConfig, subscribe, actualizarEstadosVencidos, limpiarIIBBMonotributistas,
 } from '../db/store.js'
 
 const AppContext = createContext(null)
@@ -23,6 +23,7 @@ export const AppProvider = ({ children }) => {
   }, [])
 
   useEffect(() => {
+    limpiarIIBBMonotributistas()  // migración: elimina IIBB Local de monotributistas
     refresh()
     const unsub = subscribe(refresh)
     return unsub

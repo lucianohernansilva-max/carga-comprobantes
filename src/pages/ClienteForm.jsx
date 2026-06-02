@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Save, Trash2, RefreshCw } from 'lucide-react'
-import { saveCliente, getCliente, deleteCliente, getTiposObligacion, getObligacionesCliente, saveObligacionCliente, deleteObligacionCliente, getConfig } from '../db/store.js'
+import { saveCliente, getCliente, deleteCliente, getTiposObligacion, getObligacionesCliente, saveObligacionCliente, deleteObligacionCliente, getConfig, limpiarIIBBMonotributistas } from '../db/store.js'
 import { generarVencimientosCliente } from '../db/generador.js'
 import { terminacionCuit, PATRONES } from '../db/fechas.js'
 
@@ -43,7 +43,15 @@ export default function ClienteForm() {
     }
   }, [id, isEdit])
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }))
+    // Al cambiar a Monotributista, desactivar IIBB Local automáticamente
+    if (k === 'condicionFiscal' && v === 'monotributista') {
+      setObligaciones(prev => prev.map(o =>
+        o.tipoObligacionId === 'iibb-local' ? { ...o, activa: false } : o
+      ))
+    }
+  }
 
   const toggleJurisdiccion = (prov) => {
     setForm(f => {
@@ -86,10 +94,16 @@ export default function ClienteForm() {
     saveCliente(data)
     const clienteId = isEdit ? id : data.id
 
-    // Guardar obligaciones
-    for (const obl of obligaciones) {
+    // Guardar obligaciones (para monotributistas, iibb-local siempre inactiva)
+    const oblsFinal = data.condicionFiscal === 'monotributista'
+      ? obligaciones.map(o => o.tipoObligacionId === 'iibb-local' ? { ...o, activa: false } : o)
+      : obligaciones
+    for (const obl of oblsFinal) {
       saveObligacionCliente({ ...obl, clienteId: clienteId || id })
     }
+
+    // Limpiar vencimientos IIBB Local si es monotributista
+    if (data.condicionFiscal === 'monotributista') limpiarIIBBMonotributistas()
 
     // Generar vencimientos
     const cliente = getCliente(clienteId || id)
@@ -253,16 +267,26 @@ export default function ClienteForm() {
         {/* Obligaciones */}
         <div className="card-padded">
           <p className="text-xs font-bold text-primary uppercase tracking-wide mb-3">Obligaciones activas</p>
+
+          {form.condicionFiscal === 'monotributista' && (
+            <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+              <span className="font-semibold">Régimen Unificado Chaco</span> — IIBB incluido en cuota mensual del Monotributo
+            </div>
+          )}
+
           <div className="space-y-1.5">
-            {tipos.map(t => (
-              <label key={t.id} className="flex items-start gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1.5 rounded-lg">
-                <input type="checkbox" className="mt-0.5 rounded" checked={oblActiva(t.id)} onChange={() => toggleObl(t.id)} />
-                <div>
-                  <p className="text-sm text-gray-800 font-medium">{t.nombre}</p>
-                  <p className="text-xs text-gray-500">{t.descripcion}</p>
-                </div>
-              </label>
-            ))}
+            {tipos
+              .filter(t => !(form.condicionFiscal === 'monotributista' && t.id === 'iibb-local'))
+              .map(t => (
+                <label key={t.id} className="flex items-start gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1.5 rounded-lg">
+                  <input type="checkbox" className="mt-0.5 rounded" checked={oblActiva(t.id)} onChange={() => toggleObl(t.id)} />
+                  <div>
+                    <p className="text-sm text-gray-800 font-medium">{t.nombre}</p>
+                    <p className="text-xs text-gray-500">{t.descripcion}</p>
+                  </div>
+                </label>
+              ))
+            }
           </div>
         </div>
 

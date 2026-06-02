@@ -4,7 +4,7 @@
 import { addMonths, format, getMonth, getYear } from 'date-fns'
 import { calcularFechaVencimiento, PATRONES } from './fechas.js'
 import { ajustarDiaHabil } from './feriados.js'
-import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion, getClientes, updateVencimientosFechas } from './store.js'
+import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion, getClientes, updateVencimientosFechas, limpiarIIBBMonotributistas } from './store.js'
 
 // Genera vencimientos para un cliente desde hoy hasta horizonte meses
 export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = {}) => {
@@ -106,6 +106,14 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
 
 export const generarVencimientosTodos = (clientes) => {
   for (const c of clientes) generarVencimientosCliente(c)
+}
+
+// Limpia IIBB Local de monotributistas y regenera sus vencimientos correctamente.
+export const regenerarVencimientosMonotributistas = () => {
+  limpiarIIBBMonotributistas()
+  const monotributistas = getClientes().filter(c => c.condicionFiscal === 'monotributista')
+  for (const c of monotributistas) generarVencimientosCliente(c)
+  return monotributistas.length
 }
 
 // Recalcula las fechas de vencimientos existentes (no ajustados manualmente) según el calendario actual.

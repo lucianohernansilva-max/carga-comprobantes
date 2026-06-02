@@ -6,7 +6,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { getFeriadosExtra, saveFeriadosExtra, listarFeriadosAnio } from '../db/feriados.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import CambiarPassword from '../components/CambiarPassword.jsx'
-import { generarVencimientosTodos, recalcularFechasVencimientos } from '../db/generador.js'
+import { generarVencimientosTodos, recalcularFechasVencimientos, regenerarVencimientosMonotributistas } from '../db/generador.js'
 
 const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
@@ -183,6 +183,7 @@ export default function Configuracion() {
     setRegenerando(true)
     setTimeout(() => {
       saveConfig(config)
+      regenerarVencimientosMonotributistas()   // limpia IIBB Local y regenera mono
       recalcularFechasVencimientos(config)
       generarVencimientosTodos(getClientes())
       refresh()
