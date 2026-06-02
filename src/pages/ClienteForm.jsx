@@ -45,11 +45,21 @@ export default function ClienteForm() {
 
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }))
-    // Al cambiar a Monotributista, desactivar IIBB Local automáticamente
+    // Al cambiar a Monotributista: desactivar IIBB Local y activar cuota + recategorización
     if (k === 'condicionFiscal' && v === 'monotributista') {
-      setObligaciones(prev => prev.map(o =>
-        o.tipoObligacionId === 'iibb-local' ? { ...o, activa: false } : o
-      ))
+      setObligaciones(prev => {
+        let updated = prev.map(o =>
+          o.tipoObligacionId === 'iibb-local' ? { ...o, activa: false } : o
+        )
+        for (const tipoId of ['monotributo-cuota', 'monotributo-recategorizacion']) {
+          if (!updated.find(o => o.tipoObligacionId === tipoId)) {
+            updated = [...updated, { tipoObligacionId: tipoId, activa: true, configuracionExtra: {} }]
+          } else {
+            updated = updated.map(o => o.tipoObligacionId === tipoId ? { ...o, activa: true } : o)
+          }
+        }
+        return updated
+      })
     }
   }
 

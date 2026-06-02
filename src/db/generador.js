@@ -2,9 +2,9 @@
 // Para cada obligación activa de un cliente, genera instancias para N meses.
 
 import { addMonths, format, getMonth, getYear } from 'date-fns'
-import { calcularFechaVencimiento, PATRONES } from './fechas.js'
+import { calcularFechaVencimiento, PATRONES, calcPatronDiaFijo } from './fechas.js'
 import { ajustarDiaHabil } from './feriados.js'
-import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion, getClientes, updateVencimientosFechas, limpiarIIBBMonotributistas } from './store.js'
+import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion, getClientes, updateVencimientosFechas, limpiarIIBBMonotributistas, limpiarVencimientosMonotributo, saveObligacionCliente } from './store.js'
 
 // Genera vencimientos para un cliente desde hoy hasta horizonte meses
 export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = {}) => {
@@ -108,11 +108,37 @@ export const generarVencimientosTodos = (clientes) => {
   for (const c of clientes) generarVencimientosCliente(c)
 }
 
+// Garantiza que un cliente monotributista tenga las obligaciones base activadas.
+const asegurarObligacionesMonotributista = (cliente) => {
+  const oblsExist = getObligacionesCliente(cliente.id)
+  for (const tipoId of ['monotributo-cuota', 'monotributo-recategorizacion']) {
+    const exist = oblsExist.find(o => o.tipoObligacionId === tipoId)
+    if (!exist) {
+      saveObligacionCliente({ clienteId: cliente.id, tipoObligacionId: tipoId, activa: true, configuracionExtra: {} })
+      console.debug('[Monotributo] Obligación creada automáticamente: cliente=%s tipoId=%s', cliente.nombre, tipoId)
+    } else if (!exist.activa) {
+      saveObligacionCliente({ ...exist, activa: true })
+      console.debug('[Monotributo] Obligación reactivada: cliente=%s tipoId=%s', cliente.nombre, tipoId)
+    }
+  }
+}
+
 // Limpia IIBB Local de monotributistas y regenera sus vencimientos correctamente.
 export const regenerarVencimientosMonotributistas = () => {
   limpiarIIBBMonotributistas()
+  // Eliminar vencimientos pendientes/vencidos de monotributo para regenerarlos con fecha fresca
+  limpiarVencimientosMonotributo()
+  const config = getConfig()
   const monotributistas = getClientes().filter(c => c.condicionFiscal === 'monotributista')
-  for (const c of monotributistas) generarVencimientosCliente(c)
+  for (const c of monotributistas) {
+    asegurarObligacionesMonotributista(c)
+    generarVencimientosCliente(c)
+    // Debug: ejemplo concreto para junio del año actual
+    const anio = new Date().getFullYear()
+    const fechaJunio = calcPatronDiaFijo({ anio, mes: 6, patronConfig: { dia: 20 }, appConfig: config, obligacionId: 'monotributo-cuota' })
+    console.debug('[Monotributo] cliente=%s CUIT=%s → junio %s: %s (tentativo=%s)',
+      c.nombre, c.cuit, anio, fechaJunio?.fecha, fechaJunio?.tentativo)
+  }
   return monotributistas.length
 }
 

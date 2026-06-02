@@ -197,6 +197,23 @@ export const limpiarIIBBMonotributistas = () => {
   return clienteIds.size
 }
 
+// Elimina vencimientos pendientes/vencidos de monotributo-cuota y monotributo-recategorizacion
+// para todos los clientes monotributistas, permitiendo regenerarlos con fechas correctas.
+export const limpiarVencimientosMonotributo = () => {
+  const clienteIds = new Set(
+    getClientes().filter(c => c.condicionFiscal === 'monotributista').map(c => c.id)
+  )
+  if (clienteIds.size === 0) return
+  const TIPOS_MONO = new Set(['monotributo-cuota', 'monotributo-recategorizacion'])
+  const venc = load(KEYS.vencimientos) || []
+  const filtrados = venc.filter(v =>
+    !(TIPOS_MONO.has(v.tipoObligacionId) &&
+      clienteIds.has(v.clienteId) &&
+      ['pendiente', 'vencido'].includes(v.estado))
+  )
+  if (filtrados.length !== venc.length) persist(KEYS.vencimientos, filtrados)
+}
+
 // Recalcula estado VENCIDO para los que pasaron la fecha sin acción
 export const actualizarEstadosVencidos = () => {
   const hoy  = new Date().toISOString().slice(0, 10)
