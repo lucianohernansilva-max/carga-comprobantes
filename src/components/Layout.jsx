@@ -6,6 +6,7 @@ import {
 import { useApp }  from '../context/AppContext.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { differenceInDays, parseISO } from 'date-fns'
+import logoImg from '../assets/logo.png'
 
 const NAV = [
   { to: '/',                    label: 'Dashboard',      Icon: LayoutDashboard },
@@ -47,16 +48,8 @@ export default function Layout({ children }) {
       <aside className="w-52 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm">
 
         {/* Logo */}
-        <div className="px-4 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <CalendarClock size={16} className="text-white" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-primary leading-tight">VencimientosFi</p>
-              <p className="text-xs text-gray-400 leading-tight">Gestión impositiva</p>
-            </div>
-          </div>
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-center">
+          <img src={logoImg} alt="Logo del estudio" className="h-12 w-auto object-contain" />
         </div>
 
         {/* Nav */}
