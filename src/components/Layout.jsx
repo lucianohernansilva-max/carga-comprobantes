@@ -6,17 +6,15 @@ import {
 import { useApp }  from '../context/AppContext.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { differenceInDays, parseISO } from 'date-fns'
-import logoImg from '../assets/logo.png'
-
 const NAV = [
   { to: '/',                    label: 'Dashboard',      Icon: LayoutDashboard },
+  { to: '/notificaciones',      label: 'Notificaciones', Icon: Bell },
   { to: '/clientes',            label: 'Clientes',       Icon: Users },
   { to: '/vencimientos',        label: 'Vencimientos',   Icon: CalendarClock },
   { to: '/calendario',          label: 'Calendario',     Icon: Calendar },
   { to: '/estadisticas',        label: 'Estadísticas',   Icon: BarChart2 },
   { to: '/comprobantes',        label: 'Comprobantes',   Icon: Receipt },
   { to: '/historial',           label: 'Historial',      Icon: History },
-  { to: '/notificaciones',      label: 'Notificaciones', Icon: Bell },
   { to: '/calculadora',         label: 'Calculadora',    Icon: Calculator },
   { to: '/configuracion',       label: 'Configuración',  Icon: Settings },
 ]
@@ -47,12 +45,10 @@ export default function Layout({ children }) {
       {/* Sidebar */}
       <aside className="w-52 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm">
 
-        {/* Logo */}
-        <div className="border-b border-gray-200">
-          <img src={logoImg} alt="Logo del estudio" className="w-full h-20 object-cover object-center" />
-          <p className="text-center text-xs text-gray-400 py-1.5 leading-tight">
-            Cr. Luciano Silva — M.P. 4201
-          </p>
+        {/* Encabezado */}
+        <div className="px-4 py-4 border-b border-gray-100">
+          <p className="text-sm font-bold text-gray-800 leading-tight">Estudio Contable</p>
+          <p className="text-xs text-gray-400 leading-tight mt-0.5">Cr. Luciano Silva — M.P. 4201</p>
         </div>
 
         {/* Nav */}
