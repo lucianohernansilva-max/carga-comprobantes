@@ -44,6 +44,10 @@ export default function Configuracion() {
   const [calTipoId, setCalTipoId] = useState('iva-mensual')
   const [calAnio, setCalAnio]     = useState(anioActual)
   const [calProvincia, setCalProvincia] = useState('Chaco')
+  const [editandoGrupos, setEditandoGrupos] = useState(false)
+  const [gruposEdit, setGruposEdit]   = useState('')   // comma-sep string while editing
+  const [nuevaProvNombre, setNuevaProvNombre] = useState('')
+  const [showNuevaProv, setShowNuevaProv]     = useState(false)
   const [feriadosAnio, setFeriadosAnio] = useState(anioActual)
   const [feriadosExtra, setFeriadosExtra_] = useState(getFeriadosExtra)
   const [nuevoFeriado, setNuevoFeriado] = useState({ fecha: '', nombre: '' })
@@ -95,22 +99,63 @@ export default function Configuracion() {
     })
   }
 
-  // IIBB Provincial
-  const readProv = (prov, anio, mes) =>
-    config.tablaFechasProvincia?.[prov.toLowerCase()]?.[String(anio)]?.[String(mes)] ?? ''
+  // IIBB Provincial — nueva estructura con grupos de CUIT por provincia
 
-  const setProv = (prov, anio, mes, valor) => {
+  // Lee los grupos configurados para una provincia
+  const getGruposProvincia = (prov) =>
+    config.configuracionProvincias?.[prov.toLowerCase()]?.grupos || []
+
+  // Guarda los grupos de una provincia
+  const setGruposProvincia = (prov, grupos) => {
+    setConfig(c => ({
+      ...c,
+      configuracionProvincias: {
+        ...(c.configuracionProvincias || {}),
+        [prov.toLowerCase()]: {
+          ...(c.configuracionProvincias?.[prov.toLowerCase()] || {}),
+          grupos,
+        },
+      },
+    }))
+  }
+
+  // Devuelve lista de provincias configuradas (con nombre capitalizado para display)
+  const provinciasConfiguradas = Object.keys(config.configuracionProvincias || {})
+    .map(p => p.charAt(0).toUpperCase() + p.slice(1))
+
+  // Lee el día para provincia+grupo+mes+año
+  const readProvGrupo = (prov, grupo, anio, mes) =>
+    config.tablaFechasProvincia?.[prov.toLowerCase()]?.[String(anio)]?.[String(mes)]?.[grupo] ?? ''
+
+  // Escribe el día para provincia+grupo+mes+año
+  const setProvGrupo = (prov, grupo, anio, mes, valor) => {
     const v = valor === '' ? undefined : Number(valor)
     setConfig(c => {
       const t      = { ...(c.tablaFechasProvincia || {}) }
       const byProv = { ...(t[prov.toLowerCase()] || {}) }
       const byAnio = { ...(byProv[String(anio)] || {}) }
-      if (v == null || isNaN(v)) delete byAnio[String(mes)]
-      else byAnio[String(mes)] = v
-      byProv[String(anio)]             = byAnio
-      t[prov.toLowerCase()]            = byProv
+      const byMes  = { ...(byAnio[String(mes)] || {}) }
+      if (v == null || isNaN(v)) delete byMes[grupo]
+      else byMes[grupo] = v
+      byAnio[String(mes)]   = byMes
+      byProv[String(anio)]  = byAnio
+      t[prov.toLowerCase()] = byProv
       return { ...c, tablaFechasProvincia: t }
     })
+  }
+
+  // Agrega una nueva provincia con grupos por defecto
+  const agregarProvincia = (nombre) => {
+    const key = nombre.toLowerCase().trim()
+    if (!key) return
+    setConfig(c => ({
+      ...c,
+      configuracionProvincias: {
+        ...(c.configuracionProvincias || {}),
+        [key]: { grupos: ['0-4', '5-9'] },
+      },
+    }))
+    setCalProvincia(nombre.trim())
   }
 
   // Carga datos AFIP 2026 precargados para TODOS los tipos CUIT a la vez
@@ -294,22 +339,92 @@ export default function Configuracion() {
           ))}
         </div>
 
-        {/* Selector de provincia (solo para IIBB Provincial) */}
-        {calTipo?.patron === 'provincia' && (
-          <div className="flex items-center gap-2 p-2.5 bg-purple-50 rounded-lg border border-purple-200">
-            <span className="text-xs font-semibold text-purple-700">Provincia:</span>
-            <input
-              className="form-input text-xs py-1 w-44"
-              value={calProvincia}
-              onChange={e => setCalProvincia(e.target.value)}
-              placeholder="Ej: Chaco"
-            />
-            <span className="text-xs text-purple-600">Cada provincia tiene su propia grilla de fechas.</span>
-          </div>
-        )}
+        {/* Panel de provincia — solo para IIBB Provincial */}
+        {calTipo?.patron === 'provincia' && (() => {
+          const gruposProv = getGruposProvincia(calProvincia)
+          return (
+            <div className="space-y-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
+              {/* Selector de provincia */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-purple-700">Provincia:</span>
+                {provinciasConfiguradas.map(p => (
+                  <button key={p} onClick={() => { setCalProvincia(p); setEditandoGrupos(false) }}
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                      calProvincia === p
+                        ? 'bg-purple-600 text-white border-purple-600'
+                        : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-100'
+                    }`}>{p}</button>
+                ))}
+                {!showNuevaProv
+                  ? <button onClick={() => setShowNuevaProv(true)}
+                      className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-dashed border-purple-400 text-purple-500 hover:bg-purple-100">
+                      + Nueva provincia
+                    </button>
+                  : <div className="flex items-center gap-1">
+                      <input
+                        className="form-input text-xs py-0.5 w-32"
+                        value={nuevaProvNombre}
+                        onChange={e => setNuevaProvNombre(e.target.value)}
+                        placeholder="Ej: Corrientes"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => { agregarProvincia(nuevaProvNombre); setNuevaProvNombre(''); setShowNuevaProv(false) }}
+                        disabled={!nuevaProvNombre.trim()}
+                        className="btn btn-primary btn-sm px-2 py-0.5 text-xs">Agregar</button>
+                      <button onClick={() => { setShowNuevaProv(false); setNuevaProvNombre('') }}
+                        className="text-gray-400 hover:text-gray-600 text-xs px-1">✕</button>
+                    </div>
+                }
+              </div>
+
+              {/* Grupos de CUIT de la provincia seleccionada */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-purple-600 font-medium">Grupos CUIT:</span>
+                {!editandoGrupos
+                  ? <>
+                      {gruposProv.map(g => (
+                        <span key={g} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-mono font-semibold">{g}</span>
+                      ))}
+                      <button
+                        onClick={() => { setGruposEdit(gruposProv.join(', ')); setEditandoGrupos(true) }}
+                        className="text-xs text-purple-500 underline hover:text-purple-700 ml-1">
+                        ✎ Editar grupos
+                      </button>
+                    </>
+                  : <div className="flex items-center gap-1 flex-1">
+                      <input
+                        className="form-input text-xs py-0.5 flex-1"
+                        value={gruposEdit}
+                        onChange={e => setGruposEdit(e.target.value)}
+                        placeholder="0-1, 2-3, 4-5, 6-7, 8-9"
+                      />
+                      <button
+                        onClick={() => {
+                          const grupos = gruposEdit.split(',').map(s => s.trim()).filter(Boolean)
+                          setGruposProvincia(calProvincia, grupos)
+                          setEditandoGrupos(false)
+                        }}
+                        className="btn btn-primary btn-sm px-2 py-0.5 text-xs">OK</button>
+                      <button onClick={() => setEditandoGrupos(false)}
+                        className="text-gray-400 hover:text-gray-600 text-xs px-1">✕</button>
+                    </div>
+                }
+              </div>
+              {gruposProv.length === 0 && (
+                <p className="text-xs text-purple-500">
+                  Sin grupos configurados. Hacé clic en "Editar grupos" para definirlos.
+                </p>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Grilla */}
         <div className="overflow-x-auto">
+          {calTipo?.patron === 'provincia' && getGruposProvincia(calProvincia).length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">Configurá los grupos de CUIT para {calProvincia} primero.</p>
+          ) : (
           <table className="text-xs w-full border-collapse">
             <thead>
               <tr>
@@ -320,7 +435,13 @@ export default function Configuracion() {
                         CUIT {g.label}
                       </th>
                     ))
-                  : <th className="text-center py-1.5 px-2 text-gray-500 font-semibold">Día</th>
+                  : calTipo?.patron === 'provincia'
+                    ? getGruposProvincia(calProvincia).map(g => (
+                        <th key={g} className="text-center py-1.5 px-2 text-purple-600 font-semibold whitespace-nowrap">
+                          CUIT {g}
+                        </th>
+                      ))
+                    : <th className="text-center py-1.5 px-2 text-gray-500 font-semibold">Día</th>
                 }
               </tr>
             </thead>
@@ -340,8 +461,7 @@ export default function Configuracion() {
                                 className={`w-14 text-center text-xs rounded border py-1 ${
                                   val !== '' ? 'border-primary bg-blue-50 font-semibold text-primary' : 'border-gray-200 text-gray-400'
                                 }`}
-                                value={val}
-                                placeholder="—"
+                                value={val} placeholder="—"
                                 onChange={e => setGrupo(calTipo.tablaKey, calAnio, mes, g.digits, e.target.value)}
                               />
                             </td>
@@ -356,34 +476,33 @@ export default function Configuracion() {
                                   className={`w-14 text-center text-xs rounded border py-1 ${
                                     val !== '' ? 'border-primary bg-blue-50 font-semibold text-primary' : 'border-gray-200 text-gray-400'
                                   }`}
-                                  value={val}
-                                  placeholder="—"
+                                  value={val} placeholder="—"
                                   onChange={e => setFijo(calTipoId, calAnio, mes, e.target.value)}
                                 />
                               </td>
                             )
                           })()
-                        : (() => {
-                            const val = readProv(calProvincia || 'chaco', calAnio, mes)
+                        : getGruposProvincia(calProvincia).map(g => {
+                            const val = readProvGrupo(calProvincia, g, calAnio, mes)
                             return (
-                              <td className="py-0.5 px-1.5">
+                              <td key={g} className="py-0.5 px-1.5">
                                 <input type="number" min="1" max="31"
                                   className={`w-14 text-center text-xs rounded border py-1 ${
-                                    val !== '' ? 'border-primary bg-blue-50 font-semibold text-primary' : 'border-gray-200 text-gray-400'
+                                    val !== '' ? 'border-purple-500 bg-purple-50 font-semibold text-purple-700' : 'border-gray-200 text-gray-400'
                                   }`}
-                                  value={val}
-                                  placeholder="—"
-                                  onChange={e => setProv(calProvincia || 'chaco', calAnio, mes, e.target.value)}
+                                  value={val} placeholder="—"
+                                  onChange={e => setProvGrupo(calProvincia, g, calAnio, mes, e.target.value)}
                                 />
                               </td>
                             )
-                          })()
+                          })
                     }
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          )}
         </div>
 
         <div className="flex justify-end">

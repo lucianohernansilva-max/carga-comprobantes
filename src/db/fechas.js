@@ -137,13 +137,35 @@ export const calcPatronDiasCierre = ({ anio, fechaCierreEjercicio, terminacion, 
   return { fecha: format(ajustarFinDeSemana(fechaBase), 'yyyy-MM-dd'), tentativo: true }
 }
 
+// Encuentra el grupo de CUIT al que pertenece un dígito (ej: digit=3, grupos=['0-1','2-3','4-5'] → '2-3')
+const findGrupoForDigit = (grupos, digit) => {
+  for (const grupo of grupos) {
+    const parts = grupo.split('-').map(Number)
+    if (parts.length === 2 && digit >= parts[0] && digit <= parts[1]) return grupo
+    if (parts.length === 1 && digit === parts[0]) return grupo
+  }
+  return null
+}
+
 // ─── PATRON_FECHA_PROVINCIA ───────────────────────────────────────────────────
-export const calcPatronFechaProvincia = ({ anio, mes, patronConfig, appConfig }) => {
+export const calcPatronFechaProvincia = ({ anio, mes, patronConfig, appConfig, terminacion }) => {
   const prov = (patronConfig.provincia || '').toLowerCase()
-  const diaManual = prov ? appConfig?.tablaFechasProvincia?.[prov]?.[String(anio)]?.[String(mes)] : undefined
-  const dia = diaManual != null ? diaManual : (patronConfig.dia || 15)
-  const fecha = fechaSegura(anio, mes, dia)
-  return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: diaManual == null }
+  if (prov) {
+    const grupos = appConfig?.configuracionProvincias?.[prov]?.grupos
+    if (grupos && grupos.length > 0) {
+      const grupo = findGrupoForDigit(grupos, terminacion ?? 0)
+      if (grupo) {
+        const diaManual = appConfig?.tablaFechasProvincia?.[prov]?.[String(anio)]?.[String(mes)]?.[grupo]
+        if (diaManual != null) {
+          const fecha = fechaSegura(anio, mes, Number(diaManual))
+          return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: false }
+        }
+      }
+    }
+  }
+  // Sin dato en calendario → tentativo con día fijo del patronConfig
+  const fecha = fechaSegura(anio, mes, patronConfig.dia || 15)
+  return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: true }
 }
 
 // ─── Dispatcher ──────────────────────────────────────────────────────────────
@@ -167,7 +189,7 @@ export const calcularFechaVencimiento = ({ patron, anio, mes, cliente, patronCon
     case PATRONES.PATRON_DIAS_CIERRE:
       return calcPatronDiasCierre({ anio, fechaCierreEjercicio: fechaCierre, terminacion: term, patronConfig, tablaAfip, calendario })
     case PATRONES.PATRON_FECHA_PROVINCIA:
-      return calcPatronFechaProvincia({ anio, mes, patronConfig, appConfig })
+      return calcPatronFechaProvincia({ anio, mes, patronConfig, appConfig, terminacion: term })
     default:
       return null
   }

@@ -320,6 +320,28 @@ export const CALENDARIO_AFIP_2026 = {
   }},
 }
 
+// Helper: merge profundo de tablaFechasProvincia (prov → año → mes → grupos)
+const mergeTablaProvincias = (defaults, saved) => {
+  const result = {}
+  const allProvs = new Set([...Object.keys(defaults), ...Object.keys(saved)])
+  for (const p of allProvs) {
+    result[p] = {}
+    const dP = defaults[p] || {}
+    const sP = saved[p]   || {}
+    const allYears = new Set([...Object.keys(dP), ...Object.keys(sP)])
+    for (const y of allYears) {
+      result[p][y] = {}
+      const dY = dP[y] || {}
+      const sY = sP[y] || {}
+      const allMes = new Set([...Object.keys(dY), ...Object.keys(sY)])
+      for (const m of allMes) {
+        result[p][y][m] = { ...(dY[m] || {}), ...(sY[m] || {}) }
+      }
+    }
+  }
+  return result
+}
+
 const DEFAULT_CONFIG = {
   estudio: { nombre: 'Estudio Contable', cuit: '' },
   alertasDias: [7, 3, 1],
@@ -341,8 +363,18 @@ const DEFAULT_CONFIG = {
   tablaAfipCalendario: CALENDARIO_AFIP_2026,
   // Fechas manuales para obligaciones de día fijo: { obligacionId: { 'año': { 'mes': dia } } }
   tablaFechasFijas: {},
-  // Fechas manuales para IIBB provincial: { 'provincia': { 'año': { 'mes': dia } } }
-  tablaFechasProvincia: {},
+  // Configuración de grupos de CUIT por provincia: { 'provincia': { grupos: ['0-1','2-3',...] } }
+  configuracionProvincias: {
+    chaco: { grupos: ['0-1', '2-3', '4-5', '6-7', '8-9'] },
+  },
+  // Fechas IIBB por provincia: { 'provincia': { 'año': { 'mes': { 'grupo': dia } } } }
+  tablaFechasProvincia: {
+    chaco: {
+      '2026': {
+        '6': { '0-1': 18, '2-3': 19, '4-5': 22, '6-7': 23, '8-9': 24 },
+      },
+    },
+  },
 }
 
 export const getConfig  = () => {
@@ -353,8 +385,15 @@ export const getConfig  = () => {
     tablaAfip: { ...DEFAULT_CONFIG.tablaAfip, ...(saved.tablaAfip || {}) },
     // Merge profundo: defaults (2026) + ediciones del usuario; ediciones tienen prioridad
     tablaAfipCalendario: mergeCalendario(DEFAULT_CONFIG.tablaAfipCalendario, saved.tablaAfipCalendario || {}),
-    tablaFechasFijas:    { ...DEFAULT_CONFIG.tablaFechasFijas,    ...(saved.tablaFechasFijas    || {}) },
-    tablaFechasProvincia: { ...DEFAULT_CONFIG.tablaFechasProvincia, ...(saved.tablaFechasProvincia || {}) },
+    tablaFechasFijas:         { ...DEFAULT_CONFIG.tablaFechasFijas, ...(saved.tablaFechasFijas || {}) },
+    configuracionProvincias:  {
+      ...DEFAULT_CONFIG.configuracionProvincias,
+      ...(saved.configuracionProvincias || {}),
+    },
+    tablaFechasProvincia: mergeTablaProvincias(
+      DEFAULT_CONFIG.tablaFechasProvincia,
+      saved.tablaFechasProvincia || {}
+    ),
   }
 }
 export const saveConfig = (data) => { persist(KEYS.config, { ...(load(KEYS.config) || {}), ...data }) }
