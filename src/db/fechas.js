@@ -91,9 +91,11 @@ export const calcPatronCuit = ({ anio, mes, terminacion, patronConfig, tablaAfip
 }
 
 // ─── PATRON_DIA_FIJO ──────────────────────────────────────────────────────────
-export const calcPatronDiaFijo = ({ anio, mes, patronConfig }) => {
-  const fecha = fechaSegura(anio, mes, patronConfig.dia || 20)
-  return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: false }
+export const calcPatronDiaFijo = ({ anio, mes, patronConfig, appConfig, obligacionId }) => {
+  const diaManual = appConfig?.tablaFechasFijas?.[obligacionId]?.[String(anio)]?.[String(mes)]
+  const dia = diaManual != null ? diaManual : (patronConfig.dia || 20)
+  const fecha = fechaSegura(anio, mes, dia)
+  return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: diaManual == null }
 }
 
 // ─── PATRON_SEMESTRAL_FIJO ────────────────────────────────────────────────────
@@ -136,9 +138,12 @@ export const calcPatronDiasCierre = ({ anio, fechaCierreEjercicio, terminacion, 
 }
 
 // ─── PATRON_FECHA_PROVINCIA ───────────────────────────────────────────────────
-export const calcPatronFechaProvincia = ({ anio, mes, patronConfig }) => {
-  const fecha = fechaSegura(anio, mes, patronConfig.dia || 15)
-  return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: false }
+export const calcPatronFechaProvincia = ({ anio, mes, patronConfig, appConfig }) => {
+  const prov = (patronConfig.provincia || '').toLowerCase()
+  const diaManual = prov ? appConfig?.tablaFechasProvincia?.[prov]?.[String(anio)]?.[String(mes)] : undefined
+  const dia = diaManual != null ? diaManual : (patronConfig.dia || 15)
+  const fecha = fechaSegura(anio, mes, dia)
+  return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: diaManual == null }
 }
 
 // ─── Dispatcher ──────────────────────────────────────────────────────────────
@@ -146,7 +151,7 @@ export const calcPatronFechaProvincia = ({ anio, mes, patronConfig }) => {
 // `patronConfig` = configuración específica del tipo de obligación (tablaKey, mesOffset, etc.)
 // `appConfig`    = configuración global de la app (tablaAfip, tablaAfipCalendario)
 
-export const calcularFechaVencimiento = ({ patron, anio, mes, cliente, patronConfig, appConfig }) => {
+export const calcularFechaVencimiento = ({ patron, anio, mes, cliente, patronConfig, appConfig, obligacionId }) => {
   const term        = terminacionCuit(cliente?.cuit)
   const fechaCierre = cliente?.fechaCierreEjercicio
   const tablaAfip   = appConfig?.tablaAfip || {}
@@ -156,13 +161,13 @@ export const calcularFechaVencimiento = ({ patron, anio, mes, cliente, patronCon
     case PATRONES.PATRON_CUIT:
       return calcPatronCuit({ anio, mes, terminacion: term, patronConfig, tablaAfip, calendario })
     case PATRONES.PATRON_DIA_FIJO:
-      return calcPatronDiaFijo({ anio, mes, patronConfig })
+      return calcPatronDiaFijo({ anio, mes, patronConfig, appConfig, obligacionId })
     case PATRONES.PATRON_SEMESTRAL_FIJO:
       return calcPatronSemestralFijo({ anio, mes, patronConfig })
     case PATRONES.PATRON_DIAS_CIERRE:
       return calcPatronDiasCierre({ anio, fechaCierreEjercicio: fechaCierre, terminacion: term, patronConfig, tablaAfip, calendario })
     case PATRONES.PATRON_FECHA_PROVINCIA:
-      return calcPatronFechaProvincia({ anio, mes, patronConfig })
+      return calcPatronFechaProvincia({ anio, mes, patronConfig, appConfig })
     default:
       return null
   }

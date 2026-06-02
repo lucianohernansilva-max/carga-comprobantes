@@ -146,6 +146,19 @@ export const bulkSaveVencimientos = (vencimientosNuevos) => {
   return merged
 }
 
+// Actualiza fecha y tentativo de vencimientos por ID (solo los que no fueron ajustados manualmente)
+export const updateVencimientosFechas = (updates) => {
+  if (!updates || updates.length === 0) return
+  const updMap = Object.fromEntries(updates.map(u => [u.id, u]))
+  const now  = new Date().toISOString()
+  const list = (load(KEYS.vencimientos) || []).map(v => {
+    const u = updMap[v.id]
+    if (!u) return v
+    return { ...v, fecha: u.fecha, tentativo: u.tentativo, updatedAt: now }
+  })
+  persist(KEYS.vencimientos, list)
+}
+
 export const deleteVencimiento = (id) => {
   persist(KEYS.vencimientos, (load(KEYS.vencimientos) || []).filter(v => v.id !== id))
 }
@@ -192,7 +205,7 @@ const mergeCalendario = (defaults, saved) => {
 // Calendario AFIP 2026 — Errepar (Resolución General AFIP)
 // Estructura: tablaKey → año → mes_periodo → terminacion → día
 // Para tablas de grupos: 0-3 / 4-6 / 7-9 o 0-2 / 3-5 / 6-7 / 8-9
-const CALENDARIO_AFIP_2026 = {
+export const CALENDARIO_AFIP_2026 = {
   autonomos: { '2026': {
     '1': {0:5,1:5,2:5,3:5,4:6,5:6,6:6,7:7,8:7,9:7},
     '2': {0:5,1:5,2:5,3:5,4:6,5:6,6:6,7:9,8:9,9:9},
@@ -326,6 +339,10 @@ const DEFAULT_CONFIG = {
   },
   // Calendario exacto publicado por AFIP: { tablaKey: { 'año': { 'mes_periodo': { 'terminacion': dia } } } }
   tablaAfipCalendario: CALENDARIO_AFIP_2026,
+  // Fechas manuales para obligaciones de día fijo: { obligacionId: { 'año': { 'mes': dia } } }
+  tablaFechasFijas: {},
+  // Fechas manuales para IIBB provincial: { 'provincia': { 'año': { 'mes': dia } } }
+  tablaFechasProvincia: {},
 }
 
 export const getConfig  = () => {
@@ -336,6 +353,8 @@ export const getConfig  = () => {
     tablaAfip: { ...DEFAULT_CONFIG.tablaAfip, ...(saved.tablaAfip || {}) },
     // Merge profundo: defaults (2026) + ediciones del usuario; ediciones tienen prioridad
     tablaAfipCalendario: mergeCalendario(DEFAULT_CONFIG.tablaAfipCalendario, saved.tablaAfipCalendario || {}),
+    tablaFechasFijas:    { ...DEFAULT_CONFIG.tablaFechasFijas,    ...(saved.tablaFechasFijas    || {}) },
+    tablaFechasProvincia: { ...DEFAULT_CONFIG.tablaFechasProvincia, ...(saved.tablaFechasProvincia || {}) },
   }
 }
 export const saveConfig = (data) => { persist(KEYS.config, { ...(load(KEYS.config) || {}), ...data }) }

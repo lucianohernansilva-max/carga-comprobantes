@@ -1,37 +1,140 @@
 import { useState } from 'react'
-import { Save, Plus, Trash2, Download, Upload, Settings, LogOut, CalendarDays, TableProperties, RefreshCw } from 'lucide-react'
-import { getConfig, saveConfig, getTiposObligacion, saveTipoObligacion, deleteTipoObligacion, getClientes, getVencimientos, getObligacionesCliente } from '../db/store.js'
+import { Save, Plus, Trash2, Download, Upload, Settings, LogOut, CalendarDays, RefreshCw, Calendar, ChevronDown } from 'lucide-react'
+import { getConfig, saveConfig, getTiposObligacion, saveTipoObligacion, deleteTipoObligacion, getClientes, getVencimientos, getObligacionesCliente, CALENDARIO_AFIP_2026 } from '../db/store.js'
 import { PATRONES, PATRONES_LABELS } from '../db/fechas.js'
 import { useApp } from '../context/AppContext.jsx'
 import { getFeriadosExtra, saveFeriadosExtra, listarFeriadosAnio } from '../db/feriados.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import CambiarPassword from '../components/CambiarPassword.jsx'
-import { generarVencimientosTodos } from '../db/generador.js'
+import { generarVencimientosTodos, recalcularFechasVencimientos } from '../db/generador.js'
 
-const TABLA_KEYS = ['iva','autonomos','f931','lsd','casasParticulares','iibbCm','gananciasHumanas','bienesPersonales','gananciasSociedades','gananciasHumanasDDJJ']
-const TABLA_LABELS = {
-  iva: 'IVA', autonomos: 'Autónomos', f931: 'F931', lsd: 'LSD',
-  casasParticulares: 'Casas Particulares', iibbCm: 'IIBB CM',
-  gananciasHumanas: 'Ganancias PH (anticipos)', bienesPersonales: 'Bienes Personales',
-  gananciasSociedades: 'Ganancias Soc.', gananciasHumanasDDJJ: 'Ganancias PH DDJJ',
-}
 const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+// Obligaciones con calendario editable
+const TIPOS_CALENDARIO = [
+  { id: 'iva-mensual',                   label: 'IVA',             patron: 'cuit', tablaKey: 'iva' },
+  { id: 'f931',                          label: 'F931',            patron: 'cuit', tablaKey: 'f931' },
+  { id: 'autonomos-aportes',             label: 'Autónomos',       patron: 'cuit', tablaKey: 'autonomos' },
+  { id: 'lsd',                           label: 'LSD',             patron: 'cuit', tablaKey: 'lsd' },
+  { id: 'casas-particulares',            label: 'Casas Part.',     patron: 'cuit', tablaKey: 'casasParticulares' },
+  { id: 'iibb-cm',                       label: 'IIBB CM',         patron: 'cuit', tablaKey: 'iibbCm' },
+  { id: 'anticipos-ganancias-juridicas', label: 'Anticipos PJ',    patron: 'cuit', tablaKey: 'gananciasSociedades' },
+  { id: 'ganancias-anual-humanas',       label: 'Gan. PH DDJJ',   patron: 'cuit', tablaKey: 'gananciasHumanasDDJJ' },
+  { id: 'monotributo-cuota',             label: 'Monotributo',     patron: 'fijo' },
+  { id: 'iibb-local',                    label: 'IIBB Provincial', patron: 'provincia' },
+]
+
+// Grupos CUIT — al editar un grupo se replica el día para todos sus dígitos
+const GRUPOS_CUIT = [
+  { label: '0 al 3', digits: [0,1,2,3] },
+  { label: '4 al 6', digits: [4,5,6] },
+  { label: '7 al 9', digits: [7,8,9] },
+]
 
 export default function Configuracion() {
   const { tipos, refresh } = useApp()
   const { onLogout }       = useAuth()
   const [config, setConfig] = useState(getConfig())
-  const [tablaKey, setTablaKey] = useState('iva')
   const [saved, setSaved]         = useState(false)
   const [regenerando, setRegenerando] = useState(false)
+  const [calSaved, setCalSaved]   = useState(false)
   const [showNuevoTipo, setShowNuevoTipo] = useState(false)
   const [nuevoTipo, setNuevoTipo] = useState({ nombre:'', descripcion:'', periodicidad:'mensual', patron: PATRONES.PATRON_DIA_FIJO, configuracion: { dia: 20 } })
   const anioActual = new Date().getFullYear()
-  const [calTablaKey, setCalTablaKey] = useState('iva')
-  const [calAnio, setCalAnio]         = useState(anioActual)
+  const [calTipoId, setCalTipoId] = useState('iva-mensual')
+  const [calAnio, setCalAnio]     = useState(anioActual)
+  const [calProvincia, setCalProvincia] = useState('Chaco')
   const [feriadosAnio, setFeriadosAnio] = useState(anioActual)
   const [feriadosExtra, setFeriadosExtra_] = useState(getFeriadosExtra)
   const [nuevoFeriado, setNuevoFeriado] = useState({ fecha: '', nombre: '' })
+
+  const calTipo = TIPOS_CALENDARIO.find(t => t.id === calTipoId)
+
+  // ── Helpers de lectura/escritura del calendario ───────────────────────────
+
+  // CUIT — lee el primer dígito del grupo (todos deberían ser iguales)
+  const readGrupo = (tablaKey, anio, mes, digits) => {
+    const v = config.tablaAfipCalendario?.[tablaKey]?.[String(anio)]?.[String(mes)]?.[String(digits[0])]
+    return v != null ? v : ''
+  }
+
+  // CUIT — escribe el mismo día para todos los dígitos del grupo
+  const setGrupo = (tablaKey, anio, mes, digits, valor) => {
+    const v = valor === '' ? undefined : Number(valor)
+    setConfig(c => {
+      const cal    = { ...(c.tablaAfipCalendario || {}) }
+      const byKey  = { ...(cal[tablaKey] || {}) }
+      const byAnio = { ...(byKey[String(anio)] || {}) }
+      const byMes  = { ...(byAnio[String(mes)] || {}) }
+      for (const d of digits) {
+        if (v == null || isNaN(v)) delete byMes[String(d)]
+        else byMes[String(d)] = v
+      }
+      byAnio[String(mes)] = byMes
+      byKey[String(anio)] = byAnio
+      cal[tablaKey]       = byKey
+      return { ...c, tablaAfipCalendario: cal }
+    })
+  }
+
+  // Día fijo (Monotributo)
+  const readFijo = (oblId, anio, mes) =>
+    config.tablaFechasFijas?.[oblId]?.[String(anio)]?.[String(mes)] ?? ''
+
+  const setFijo = (oblId, anio, mes, valor) => {
+    const v = valor === '' ? undefined : Number(valor)
+    setConfig(c => {
+      const t      = { ...(c.tablaFechasFijas || {}) }
+      const byId   = { ...(t[oblId] || {}) }
+      const byAnio = { ...(byId[String(anio)] || {}) }
+      if (v == null || isNaN(v)) delete byAnio[String(mes)]
+      else byAnio[String(mes)] = v
+      byId[String(anio)] = byAnio
+      t[oblId]           = byId
+      return { ...c, tablaFechasFijas: t }
+    })
+  }
+
+  // IIBB Provincial
+  const readProv = (prov, anio, mes) =>
+    config.tablaFechasProvincia?.[prov.toLowerCase()]?.[String(anio)]?.[String(mes)] ?? ''
+
+  const setProv = (prov, anio, mes, valor) => {
+    const v = valor === '' ? undefined : Number(valor)
+    setConfig(c => {
+      const t      = { ...(c.tablaFechasProvincia || {}) }
+      const byProv = { ...(t[prov.toLowerCase()] || {}) }
+      const byAnio = { ...(byProv[String(anio)] || {}) }
+      if (v == null || isNaN(v)) delete byAnio[String(mes)]
+      else byAnio[String(mes)] = v
+      byProv[String(anio)]             = byAnio
+      t[prov.toLowerCase()]            = byProv
+      return { ...c, tablaFechasProvincia: t }
+    })
+  }
+
+  // Carga datos AFIP precargados para el tipo/año seleccionado
+  const cargarDesdeAfip = () => {
+    if (!calTipo || calTipo.patron !== 'cuit') return
+    const preloaded = CALENDARIO_AFIP_2026[calTipo.tablaKey]?.[String(calAnio)]
+    if (!preloaded) { alert(`No hay datos AFIP precargados para ${calTipo.label} ${calAnio}.`); return }
+    setConfig(c => {
+      const cal    = { ...(c.tablaAfipCalendario || {}) }
+      const byKey  = { ...(cal[calTipo.tablaKey] || {}) }
+      byKey[String(calAnio)] = { ...preloaded }
+      cal[calTipo.tablaKey]  = byKey
+      return { ...c, tablaAfipCalendario: cal }
+    })
+  }
+
+  // Guardar calendario y recalcular vencimientos existentes
+  const guardarCalendario = () => {
+    saveConfig(config)
+    const n = recalcularFechasVencimientos()
+    refresh()
+    setCalSaved(true)
+    setTimeout(() => setCalSaved(false), 2500)
+  }
 
   const agregarFeriado = () => {
     if (!nuevoFeriado.fecha || !nuevoFeriado.nombre) return
@@ -51,35 +154,6 @@ export default function Configuracion() {
     refresh()
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-  }
-
-  const setTabla = (key, digito, valor) => {
-    setConfig(c => ({
-      ...c,
-      tablaAfip: {
-        ...c.tablaAfip,
-        [key]: { ...c.tablaAfip[key], [digito]: Number(valor) }
-      }
-    }))
-  }
-
-  const setCalendario = (tablaKey, anio, mes, digito, valor) => {
-    const v = valor === '' ? undefined : Number(valor)
-    setConfig(c => {
-      const cal    = { ...(c.tablaAfipCalendario || {}) }
-      const byKey  = { ...(cal[tablaKey] || {}) }
-      const byAnio = { ...(byKey[String(anio)] || {}) }
-      const byMes  = { ...(byAnio[String(mes)] || {}) }
-      if (v == null || isNaN(v)) {
-        delete byMes[String(digito)]
-      } else {
-        byMes[String(digito)] = v
-      }
-      byAnio[String(mes)]  = byMes
-      byKey[String(anio)]  = byAnio
-      cal[tablaKey]        = byKey
-      return { ...c, tablaAfipCalendario: cal }
-    })
   }
 
   const crearTipo = () => {
@@ -171,98 +245,148 @@ export default function Configuracion() {
         </div>
       </div>
 
-      {/* Tabla AFIP */}
-      <div className="card-padded">
-        <p className="text-xs font-bold text-primary uppercase tracking-wide mb-2">Tabla de vencimientos AFIP por terminación de CUIT</p>
-        <div className="flex gap-2 mb-3 flex-wrap">
-          {TABLA_KEYS.map(k => (
-            <button key={k} onClick={() => setTablaKey(k)}
-              className={`px-2.5 py-1 rounded text-xs font-semibold ${tablaKey === k ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {TABLA_LABELS[k]}
+      {/* Calendario de Vencimientos por Mes */}
+      <div className="card-padded space-y-3">
+        <div className="flex items-center gap-2">
+          <Calendar size={15} className="text-primary" />
+          <p className="text-xs font-bold text-primary uppercase tracking-wide">Calendario de Vencimientos por Mes</p>
+        </div>
+        <p className="text-xs text-gray-500">
+          Ingresá el día de vencimiento para cada mes y tipo de obligación.
+          Las celdas con dato cargado muestran fecha <b>confirmada</b>; las vacías muestran advertencia naranja.
+          Guardar aquí actualiza automáticamente todos los vencimientos generados.
+        </p>
+
+        {/* Chips de tipo */}
+        <div className="flex gap-1 flex-wrap">
+          {TIPOS_CALENDARIO.map(t => (
+            <button key={t.id} onClick={() => setCalTipoId(t.id)}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                calTipoId === t.id
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-primary hover:text-primary'
+              }`}>
+              {t.label}
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-5 gap-2">
-          {[0,1,2,3,4,5,6,7,8,9].map(d => (
-            <div key={d}>
-              <label className="form-label text-center block">…{d}</label>
-              <input type="number" min="1" max="31" className="form-input text-center text-sm"
-                value={config.tablaAfip?.[tablaKey]?.[d] ?? ''}
-                onChange={e => setTabla(tablaKey, d, e.target.value)} />
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Calendario AFIP mes a mes */}
-      <div className="card-padded space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <TableProperties size={15} className="text-primary" />
-          <p className="text-xs font-bold text-primary uppercase tracking-wide">Calendario AFIP — fechas exactas por mes</p>
-        </div>
-        <p className="text-xs text-gray-500">
-          Cargá las fechas exactas publicadas por AFIP para cada mes, tipo y terminación de CUIT.
-          Si un mes no tiene fecha cargada, la app usará la tabla genérica y mostrará "fecha tentativa".
-        </p>
-
-        {/* Selector tipo + año */}
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="flex gap-1 flex-wrap">
-            {TABLA_KEYS.map(k => (
-              <button key={k} onClick={() => setCalTablaKey(k)}
-                className={`px-2.5 py-1 rounded text-xs font-semibold ${calTablaKey === k ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                {TABLA_LABELS[k]}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
+        {/* Año + botón AFIP */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1">
             <button onClick={() => setCalAnio(a => a - 1)} className="btn btn-secondary btn-sm px-2">‹</button>
             <span className="font-semibold text-sm text-gray-700 w-12 text-center">{calAnio}</span>
             <button onClick={() => setCalAnio(a => a + 1)} className="btn btn-secondary btn-sm px-2">›</button>
           </div>
+          {calTipo?.patron === 'cuit' && (
+            <button onClick={cargarDesdeAfip} className="btn btn-outline btn-sm ml-auto">
+              <RefreshCw size={12} /> Cargar datos AFIP {calAnio}
+            </button>
+          )}
+          {calTipo?.patron === 'provincia' && (
+            <div className="flex items-center gap-1.5 ml-auto">
+              <span className="text-xs text-gray-500">Provincia:</span>
+              <input
+                className="form-input text-xs py-1 w-36"
+                value={calProvincia}
+                onChange={e => setCalProvincia(e.target.value)}
+                placeholder="Chaco"
+              />
+            </div>
+          )}
         </div>
 
-        {/* Grilla: filas = mes, columnas = terminación 0-9 */}
+        {/* Grilla */}
         <div className="overflow-x-auto">
           <table className="text-xs w-full border-collapse">
             <thead>
               <tr>
-                <th className="text-left py-1 pr-3 text-gray-500 font-semibold w-12">Mes</th>
-                {[0,1,2,3,4,5,6,7,8,9].map(d => (
-                  <th key={d} className="text-center py-1 px-1 text-gray-500 font-semibold w-10">…{d}</th>
-                ))}
+                <th className="text-left py-1.5 pr-4 text-gray-500 font-semibold w-14">Mes</th>
+                {calTipo?.patron === 'cuit'
+                  ? GRUPOS_CUIT.map(g => (
+                      <th key={g.label} className="text-center py-1.5 px-2 text-gray-500 font-semibold whitespace-nowrap">
+                        CUIT {g.label}
+                      </th>
+                    ))
+                  : <th className="text-center py-1.5 px-2 text-gray-500 font-semibold">Día</th>
+                }
               </tr>
             </thead>
             <tbody>
               {MESES_CORTOS.map((label, idx) => {
                 const mes = idx + 1
                 return (
-                  <tr key={mes} className="border-t border-gray-100">
-                    <td className="py-1 pr-3 text-gray-600 font-medium">{label}</td>
-                    {[0,1,2,3,4,5,6,7,8,9].map(d => {
-                      const val = config.tablaAfipCalendario?.[calTablaKey]?.[String(calAnio)]?.[String(mes)]?.[String(d)]
-                      return (
-                        <td key={d} className="py-0.5 px-0.5">
-                          <input
-                            type="number" min="1" max="31"
-                            className={`w-10 text-center text-xs rounded border py-1 ${val != null ? 'border-primary bg-blue-50 font-semibold' : 'border-gray-200 bg-white text-gray-400'}`}
-                            value={val ?? ''}
-                            placeholder="—"
-                            onChange={e => setCalendario(calTablaKey, calAnio, mes, d, e.target.value)}
-                          />
-                        </td>
-                      )
-                    })}
+                  <tr key={mes} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="py-1 pr-4 text-gray-600 font-medium">{label}</td>
+
+                    {calTipo?.patron === 'cuit'
+                      ? GRUPOS_CUIT.map(g => {
+                          const val = readGrupo(calTipo.tablaKey, calAnio, mes, g.digits)
+                          return (
+                            <td key={g.label} className="py-0.5 px-1.5">
+                              <input type="number" min="1" max="31"
+                                className={`w-14 text-center text-xs rounded border py-1 ${
+                                  val !== '' ? 'border-primary bg-blue-50 font-semibold text-primary' : 'border-gray-200 text-gray-400'
+                                }`}
+                                value={val}
+                                placeholder="—"
+                                onChange={e => setGrupo(calTipo.tablaKey, calAnio, mes, g.digits, e.target.value)}
+                              />
+                            </td>
+                          )
+                        })
+                      : calTipo?.patron === 'fijo'
+                        ? (() => {
+                            const val = readFijo(calTipoId, calAnio, mes)
+                            return (
+                              <td className="py-0.5 px-1.5">
+                                <input type="number" min="1" max="31"
+                                  className={`w-14 text-center text-xs rounded border py-1 ${
+                                    val !== '' ? 'border-primary bg-blue-50 font-semibold text-primary' : 'border-gray-200 text-gray-400'
+                                  }`}
+                                  value={val}
+                                  placeholder="—"
+                                  onChange={e => setFijo(calTipoId, calAnio, mes, e.target.value)}
+                                />
+                              </td>
+                            )
+                          })()
+                        : (() => {
+                            const val = readProv(calProvincia || 'chaco', calAnio, mes)
+                            return (
+                              <td className="py-0.5 px-1.5">
+                                <input type="number" min="1" max="31"
+                                  className={`w-14 text-center text-xs rounded border py-1 ${
+                                    val !== '' ? 'border-primary bg-blue-50 font-semibold text-primary' : 'border-gray-200 text-gray-400'
+                                  }`}
+                                  value={val}
+                                  placeholder="—"
+                                  onChange={e => setProv(calProvincia || 'chaco', calAnio, mes, e.target.value)}
+                                />
+                              </td>
+                            )
+                          })()
+                    }
                   </tr>
                 )
               })}
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-gray-400">
-          Celdas en azul = fecha exacta cargada (vencimiento definitivo). Celdas vacías = se usará la tabla genérica (vencimiento tentativo).
-          Guardá con el botón al pie de la página.
-        </p>
+
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-gray-400 flex-1">
+            Celdas en <span className="text-primary font-semibold">azul</span> = fecha confirmada.
+            Celdas vacías = vencimiento tentativo (advertencia naranja en la pantalla del cliente).
+          </p>
+          <button
+            onClick={guardarCalendario}
+            className={`btn btn-sm ${calSaved ? 'btn-success' : 'btn-primary'} shrink-0`}
+          >
+            <Save size={13} />
+            {calSaved ? '✓ Guardado y actualizado' : 'Guardar y actualizar vencimientos'}
+          </button>
+        </div>
       </div>
 
       {/* Tipos custom */}

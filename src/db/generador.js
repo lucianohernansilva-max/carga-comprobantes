@@ -4,7 +4,7 @@
 import { addMonths, format, getMonth, getYear } from 'date-fns'
 import { calcularFechaVencimiento, PATRONES } from './fechas.js'
 import { ajustarDiaHabil } from './feriados.js'
-import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion } from './store.js'
+import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion, getClientes, updateVencimientosFechas } from './store.js'
 
 // Genera vencimientos para un cliente desde hoy hasta horizonte meses
 export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = {}) => {
@@ -29,7 +29,7 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
         // mesesAplicables restringe la generación a meses específicos (ej: DDJJ anual solo en mes de cierre)
         if (configEfectivo.mesesAplicables && !configEfectivo.mesesAplicables.includes(mes)) continue
         const result = calcularFechaVencimiento({
-          patron: tipo.patron, anio, mes, cliente, patronConfig: configEfectivo, appConfig: config,
+          patron: tipo.patron, anio, mes, cliente, patronConfig: configEfectivo, appConfig: config, obligacionId: tipo.id,
         })
         if (!result) continue
         const fv = ajustarDiaHabil(result.fecha)
@@ -56,7 +56,7 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
         const anio  = getYear(fecha)
         const mes   = getMonth(fecha) + 1
         const result = calcularFechaVencimiento({
-          patron: tipo.patron, anio, mes, cliente, patronConfig: configEfectivo, appConfig: config,
+          patron: tipo.patron, anio, mes, cliente, patronConfig: configEfectivo, appConfig: config, obligacionId: tipo.id,
         })
         if (!result) continue
         const fv = ajustarDiaHabil(result.fecha)
@@ -106,4 +106,50 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
 
 export const generarVencimientosTodos = (clientes) => {
   for (const c of clientes) generarVencimientosCliente(c)
+}
+
+// Recalcula las fechas de vencimientos existentes (no ajustados manualmente) según el calendario actual.
+// Devuelve la cantidad de vencimientos actualizados.
+export const recalcularFechasVencimientos = () => {
+  const config    = getConfig()
+  const clientes  = getClientes()
+  const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c]))
+  const oblAll    = getObligacionesCliente()
+  const oblMap    = Object.fromEntries(oblAll.map(o => [o.id, o]))
+
+  const updates = []
+
+  for (const v of getVencimientos()) {
+    if (v.ajustadoManualmente) continue
+    if (['pagado', 'presentado', 'no_aplica'].includes(v.estado)) continue
+
+    const tipo    = getTipoObligacion(v.tipoObligacionId)
+    const obl     = oblMap[v.obligacionClienteId]
+    const cliente = clienteMap[v.clienteId]
+    if (!tipo || !obl || !cliente) continue
+
+    const configEfectivo = { ...tipo.configuracion, ...(obl.configuracionExtra || {}) }
+
+    let anio, mes
+    if (v.periodo && v.periodo.includes('-')) {
+      const p = v.periodo.split('-')
+      anio = Number(p[0]); mes = Number(p[1])
+    } else {
+      anio = Number(v.periodo); mes = 1
+    }
+
+    const result = calcularFechaVencimiento({
+      patron: tipo.patron, anio, mes, cliente,
+      patronConfig: configEfectivo, appConfig: config, obligacionId: tipo.id,
+    })
+    if (!result) continue
+
+    const nuevaFecha = ajustarDiaHabil(result.fecha)
+    if (nuevaFecha !== v.fecha || result.tentativo !== v.tentativo) {
+      updates.push({ id: v.id, fecha: nuevaFecha, tentativo: result.tentativo })
+    }
+  }
+
+  if (updates.length > 0) updateVencimientosFechas(updates)
+  return updates.length
 }
