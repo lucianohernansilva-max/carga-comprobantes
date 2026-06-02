@@ -48,8 +48,11 @@ export default function Layout({ children }) {
       <aside className="w-52 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm">
 
         {/* Logo */}
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-center">
-          <img src={logoImg} alt="Logo del estudio" className="h-12 w-auto object-contain" />
+        <div className="border-b border-gray-200">
+          <img src={logoImg} alt="Logo del estudio" className="w-full h-20 object-cover object-center" />
+          <p className="text-center text-xs text-gray-400 py-1.5 leading-tight">
+            Cr. Luciano Silva — M.P. 4201
+          </p>
         </div>
 
         {/* Nav */}
