@@ -113,27 +113,38 @@ export default function Configuracion() {
     })
   }
 
-  // Carga datos AFIP precargados para el tipo/año seleccionado
+  // Carga datos AFIP 2026 precargados para TODOS los tipos CUIT a la vez
   const cargarDesdeAfip = () => {
-    if (!calTipo || calTipo.patron !== 'cuit') return
-    const preloaded = CALENDARIO_AFIP_2026[calTipo.tablaKey]?.[String(calAnio)]
-    if (!preloaded) { alert(`No hay datos AFIP precargados para ${calTipo.label} ${calAnio}.`); return }
+    const tiposCuit = TIPOS_CALENDARIO.filter(t => t.patron === 'cuit')
+    const disponibles = tiposCuit.filter(t => CALENDARIO_AFIP_2026[t.tablaKey]?.[String(calAnio)])
+    if (disponibles.length === 0) {
+      alert(`No hay datos AFIP precargados para el año ${calAnio}.`)
+      return
+    }
     setConfig(c => {
-      const cal    = { ...(c.tablaAfipCalendario || {}) }
-      const byKey  = { ...(cal[calTipo.tablaKey] || {}) }
-      byKey[String(calAnio)] = { ...preloaded }
-      cal[calTipo.tablaKey]  = byKey
+      const cal = { ...(c.tablaAfipCalendario || {}) }
+      for (const t of disponibles) {
+        const preloaded = CALENDARIO_AFIP_2026[t.tablaKey][String(calAnio)]
+        const byKey = { ...(cal[t.tablaKey] || {}) }
+        byKey[String(calAnio)] = { ...preloaded }
+        cal[t.tablaKey] = byKey
+      }
       return { ...c, tablaAfipCalendario: cal }
     })
   }
 
-  // Guardar calendario y recalcular vencimientos existentes
+  // Guardar calendario, recalcular fechas existentes y generar vencimientos faltantes
   const guardarCalendario = () => {
-    saveConfig(config)
-    const n = recalcularFechasVencimientos()
-    refresh()
-    setCalSaved(true)
-    setTimeout(() => setCalSaved(false), 2500)
+    setRegenerando(true)
+    setTimeout(() => {
+      saveConfig(config)
+      recalcularFechasVencimientos()
+      generarVencimientosTodos(getClientes())
+      refresh()
+      setRegenerando(false)
+      setCalSaved(true)
+      setTimeout(() => setCalSaved(false), 3000)
+    }, 50)
   }
 
   const agregarFeriado = () => {
@@ -252,10 +263,22 @@ export default function Configuracion() {
           <p className="text-xs font-bold text-primary uppercase tracking-wide">Calendario de Vencimientos por Mes</p>
         </div>
         <p className="text-xs text-gray-500">
-          Ingresá el día de vencimiento para cada mes y tipo de obligación.
-          Las celdas con dato cargado muestran fecha <b>confirmada</b>; las vacías muestran advertencia naranja.
-          Guardar aquí actualiza automáticamente todos los vencimientos generados.
+          Ingresá el día de vencimiento para cada mes. <span className="font-medium text-primary">Celdas en azul = fecha confirmada</span>;
+          celdas vacías = advertencia naranja "pendiente de confirmar" en el vencimiento del cliente.
+          Esta grilla es la <b>única fuente de verdad</b>: no se usa ningún cálculo automático.
         </p>
+
+        {/* Fila superior: año + cargar AFIP */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setCalAnio(a => a - 1)} className="btn btn-secondary btn-sm px-2">‹</button>
+            <span className="font-bold text-sm text-gray-800 w-12 text-center">{calAnio}</span>
+            <button onClick={() => setCalAnio(a => a + 1)} className="btn btn-secondary btn-sm px-2">›</button>
+          </div>
+          <button onClick={cargarDesdeAfip} className="btn btn-outline btn-sm ml-auto">
+            <RefreshCw size={12} /> Cargar TODOS los datos AFIP {calAnio}
+          </button>
+        </div>
 
         {/* Chips de tipo */}
         <div className="flex gap-1 flex-wrap">
@@ -271,30 +294,19 @@ export default function Configuracion() {
           ))}
         </div>
 
-        {/* Año + botón AFIP */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1">
-            <button onClick={() => setCalAnio(a => a - 1)} className="btn btn-secondary btn-sm px-2">‹</button>
-            <span className="font-semibold text-sm text-gray-700 w-12 text-center">{calAnio}</span>
-            <button onClick={() => setCalAnio(a => a + 1)} className="btn btn-secondary btn-sm px-2">›</button>
+        {/* Selector de provincia (solo para IIBB Provincial) */}
+        {calTipo?.patron === 'provincia' && (
+          <div className="flex items-center gap-2 p-2.5 bg-purple-50 rounded-lg border border-purple-200">
+            <span className="text-xs font-semibold text-purple-700">Provincia:</span>
+            <input
+              className="form-input text-xs py-1 w-44"
+              value={calProvincia}
+              onChange={e => setCalProvincia(e.target.value)}
+              placeholder="Ej: Chaco"
+            />
+            <span className="text-xs text-purple-600">Cada provincia tiene su propia grilla de fechas.</span>
           </div>
-          {calTipo?.patron === 'cuit' && (
-            <button onClick={cargarDesdeAfip} className="btn btn-outline btn-sm ml-auto">
-              <RefreshCw size={12} /> Cargar datos AFIP {calAnio}
-            </button>
-          )}
-          {calTipo?.patron === 'provincia' && (
-            <div className="flex items-center gap-1.5 ml-auto">
-              <span className="text-xs text-gray-500">Provincia:</span>
-              <input
-                className="form-input text-xs py-1 w-36"
-                value={calProvincia}
-                onChange={e => setCalProvincia(e.target.value)}
-                placeholder="Chaco"
-              />
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Grilla */}
         <div className="overflow-x-auto">
@@ -374,17 +386,18 @@ export default function Configuracion() {
           </table>
         </div>
 
-        <div className="flex items-center gap-3">
-          <p className="text-xs text-gray-400 flex-1">
-            Celdas en <span className="text-primary font-semibold">azul</span> = fecha confirmada.
-            Celdas vacías = vencimiento tentativo (advertencia naranja en la pantalla del cliente).
-          </p>
+        <div className="flex justify-end">
           <button
             onClick={guardarCalendario}
+            disabled={regenerando}
             className={`btn btn-sm ${calSaved ? 'btn-success' : 'btn-primary'} shrink-0`}
           >
-            <Save size={13} />
-            {calSaved ? '✓ Guardado y actualizado' : 'Guardar y actualizar vencimientos'}
+            {regenerando
+              ? <><RefreshCw size={13} className="animate-spin" /> Actualizando…</>
+              : calSaved
+                ? <><Save size={13} /> ✓ Guardado y vencimientos actualizados</>
+                : <><Save size={13} /> Guardar y actualizar vencimientos</>
+            }
           </button>
         </div>
       </div>
