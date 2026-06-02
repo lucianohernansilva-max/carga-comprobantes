@@ -4,10 +4,13 @@
 const KEYS = {
   clientes:        'vc_clientes',
   tiposObligacion: 'vc_tipos_obligacion',
-  obligaciones:    'vc_obligaciones',      // relación cliente ↔ tipo
+  obligaciones:    'vc_obligaciones',
   vencimientos:    'vc_vencimientos',
   config:          'vc_config',
   initialized:     'vc_initialized',
+  checklists:      'vc_checklists',
+  inscripciones:   'vc_inscripciones',
+  facturacionMono: 'vc_facturacion_mono',
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -433,3 +436,117 @@ export const saveConfig = (data) => { persist(KEYS.config, { ...(load(KEYS.confi
 
 export const isInitialized = () => load(KEYS.initialized) === true
 export const setInitialized = () => save(KEYS.initialized, true)
+
+// ─── checklist mensual ────────────────────────────────────────────────────────
+
+export const CHECKLIST_TEMPLATES = {
+  monotributista: [
+    'Pagar cuota Monotributo',
+    'Verificar facturación acumulada del período',
+    'Archivar comprobante de pago',
+  ],
+  responsable_inscripto: [
+    'Presentar DDJJ IVA',
+    'Pagar saldo de IVA',
+    'Presentar DDJJ IIBB',
+    'Pagar IIBB',
+    'Presentar F931 (si tiene empleados)',
+    'Pagar cargas sociales',
+    'Revisar anticipos de Ganancias',
+    'Archivar comprobantes del mes',
+  ],
+  autonomo: [
+    'Pagar aportes autónomos',
+    'Presentar DDJJ IIBB',
+    'Pagar IIBB',
+    'Archivar comprobantes',
+  ],
+  exento: [
+    'Presentar DDJJ IIBB (si corresponde)',
+    'Archivar documentación del mes',
+  ],
+}
+
+export const getChecklists = (clienteId) => {
+  const all = load(KEYS.checklists) || []
+  return clienteId ? all.filter(c => c.clienteId === clienteId) : all
+}
+
+export const getChecklist = (clienteId, mes) =>
+  getChecklists(clienteId).find(c => c.mes === mes) || null
+
+export const getOrCreateChecklist = (clienteId, mes, condicionFiscal) => {
+  const existing = getChecklist(clienteId, mes)
+  if (existing) return existing
+  const template = CHECKLIST_TEMPLATES[condicionFiscal] || CHECKLIST_TEMPLATES.exento
+  const now = new Date().toISOString()
+  const checklist = {
+    id: uuid(), clienteId, mes,
+    items: template.map(texto => ({ id: uuid(), texto, completado: false, personalizado: false })),
+    createdAt: now, updatedAt: now,
+  }
+  const all = load(KEYS.checklists) || []
+  all.push(checklist)
+  persist(KEYS.checklists, all)
+  return checklist
+}
+
+export const saveChecklist = (data) => {
+  const all = load(KEYS.checklists) || []
+  const now = new Date().toISOString()
+  const idx = all.findIndex(c => c.id === data.id)
+  let updated
+  if (idx >= 0) {
+    all[idx] = updated = { ...all[idx], ...data, updatedAt: now }
+  } else {
+    updated = { ...data, updatedAt: now }
+    all.push(updated)
+  }
+  persist(KEYS.checklists, all)
+  return updated
+}
+
+// ─── inscripciones y habilitaciones ──────────────────────────────────────────
+
+export const getInscripciones = (clienteId) => {
+  const all = load(KEYS.inscripciones) || []
+  return clienteId ? all.filter(i => i.clienteId === clienteId) : all
+}
+
+export const saveInscripcion = (data) => {
+  const list = load(KEYS.inscripciones) || []
+  const now  = new Date().toISOString()
+  if (data.id) {
+    const idx = list.findIndex(i => i.id === data.id)
+    if (idx >= 0) list[idx] = { ...list[idx], ...data, updatedAt: now }
+    else list.push({ ...data, updatedAt: now })
+  } else {
+    list.push({ ...data, id: uuid(), createdAt: now, updatedAt: now })
+  }
+  persist(KEYS.inscripciones, list)
+}
+
+export const deleteInscripcion = (id) =>
+  persist(KEYS.inscripciones, (load(KEYS.inscripciones) || []).filter(i => i.id !== id))
+
+// ─── facturación Monotributo ──────────────────────────────────────────────────
+// Límites anuales 2025 por categoría (actualizables desde config)
+export const LIMITES_MONOTRIBUTO_DEFAULT = {
+  A: 2_024_482, B: 2_940_680, C: 4_119_587, D: 5_104_208,
+  E: 6_325_459, F: 7_543_777, G: 8_758_191, H: 12_500_000,
+  I: 15_625_000, J: 18_750_000, K: 21_875_000,
+}
+
+export const getFacturacionMono = (clienteId) => {
+  const all = load(KEYS.facturacionMono) || {}
+  return all[clienteId] || {}
+}
+
+export const saveFacturacionMes = (clienteId, mes, importe) => {
+  const all = load(KEYS.facturacionMono) || {}
+  const byCliente = { ...(all[clienteId] || {}) }
+  if (importe === '' || importe == null) delete byCliente[mes]
+  else byCliente[mes] = Number(importe)
+  all[clienteId] = byCliente
+  persist(KEYS.facturacionMono, all)
+}

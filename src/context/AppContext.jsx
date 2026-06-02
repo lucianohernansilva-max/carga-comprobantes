@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import {
   getClientes, getVencimientos, getTiposObligacion, getObligacionesCliente,
   getConfig, subscribe, actualizarEstadosVencidos, limpiarIIBBMonotributistas,
+  getInscripciones,
 } from '../db/store.js'
 
 const AppContext = createContext(null)
@@ -12,6 +13,7 @@ export const AppProvider = ({ children }) => {
   const [tipos,           setTipos]           = useState([])
   const [obligaciones,    setObligaciones]    = useState([])
   const [config,          setConfig]          = useState({})
+  const [inscripciones,   setInscripciones]   = useState([])
 
   const refresh = useCallback(() => {
     actualizarEstadosVencidos()
@@ -20,6 +22,7 @@ export const AppProvider = ({ children }) => {
     setTipos(getTiposObligacion())
     setObligaciones(getObligacionesCliente())
     setConfig(getConfig())
+    setInscripciones(getInscripciones())
   }, [])
 
   useEffect(() => {
@@ -37,7 +40,7 @@ export const AppProvider = ({ children }) => {
   })).filter(v => v.cliente && v.tipo)
 
   return (
-    <AppContext.Provider value={{ clientes, vencimientos: vencimientosEnriquecidos, tipos, obligaciones, config, refresh }}>
+    <AppContext.Provider value={{ clientes, vencimientos: vencimientosEnriquecidos, tipos, obligaciones, config, inscripciones, refresh }}>
       {children}
     </AppContext.Provider>
   )
