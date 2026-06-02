@@ -149,13 +149,19 @@ const findGrupoForDigit = (grupos, digit) => {
 
 // ─── PATRON_FECHA_PROVINCIA ───────────────────────────────────────────────────
 export const calcPatronFechaProvincia = ({ anio, mes, patronConfig, appConfig, terminacion }) => {
-  const prov = (patronConfig.provincia || '').toLowerCase()
+  // Normalizar provincia: usar la del patronConfig o, si está vacía, la primera provincia configurada
+  let prov = (patronConfig.provincia || '').toLowerCase()
+  if (!prov && appConfig?.configuracionProvincias) {
+    const keys = Object.keys(appConfig.configuracionProvincias)
+    if (keys.length === 1) prov = keys[0]
+  }
   if (prov) {
     const grupos = appConfig?.configuracionProvincias?.[prov]?.grupos
     if (grupos && grupos.length > 0) {
       const grupo = findGrupoForDigit(grupos, terminacion ?? 0)
       if (grupo) {
         const diaManual = appConfig?.tablaFechasProvincia?.[prov]?.[String(anio)]?.[String(mes)]?.[grupo]
+        console.debug('[IIBB] prov=%s anio=%s mes=%s term=%s grupo=%s diaManual=%s', prov, anio, mes, terminacion, grupo, diaManual)
         if (diaManual != null) {
           const fecha = fechaSegura(anio, mes, Number(diaManual))
           return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: false }

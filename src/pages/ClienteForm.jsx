@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Save, Trash2, RefreshCw } from 'lucide-react'
-import { saveCliente, getCliente, deleteCliente, getTiposObligacion, getObligacionesCliente, saveObligacionCliente, deleteObligacionCliente } from '../db/store.js'
+import { saveCliente, getCliente, deleteCliente, getTiposObligacion, getObligacionesCliente, saveObligacionCliente, deleteObligacionCliente, getConfig } from '../db/store.js'
 import { generarVencimientosCliente } from '../db/generador.js'
-import { terminacionCuit } from '../db/fechas.js'
+import { terminacionCuit, PATRONES } from '../db/fechas.js'
 
 const CONDICIONES = [
   { value: 'monotributista',       label: 'Monotributista' },
@@ -56,7 +56,14 @@ export default function ClienteForm() {
     setObligaciones(prev => {
       const exist = prev.find(o => o.tipoObligacionId === tipoId)
       if (exist) return prev.map(o => o.tipoObligacionId === tipoId ? { ...o, activa: !o.activa } : o)
-      return [...prev, { tipoObligacionId: tipoId, activa: true, configuracionExtra: {} }]
+      const tipo = tipos.find(t => t.id === tipoId)
+      const configuracionExtra = {}
+      // Para IIBB Provincial, precargar la primera provincia configurada
+      if (tipo?.patron === PATRONES.PATRON_FECHA_PROVINCIA) {
+        const prov = Object.keys(getConfig().configuracionProvincias || {})[0]
+        if (prov) configuracionExtra.provincia = prov.charAt(0).toUpperCase() + prov.slice(1)
+      }
+      return [...prev, { tipoObligacionId: tipoId, activa: true, configuracionExtra }]
     })
   }
 
