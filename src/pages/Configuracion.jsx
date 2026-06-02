@@ -183,7 +183,7 @@ export default function Configuracion() {
     setRegenerando(true)
     setTimeout(() => {
       saveConfig(config)
-      recalcularFechasVencimientos()
+      recalcularFechasVencimientos(config)
       generarVencimientosTodos(getClientes())
       refresh()
       setRegenerando(false)

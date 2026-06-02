@@ -110,8 +110,8 @@ export const generarVencimientosTodos = (clientes) => {
 
 // Recalcula las fechas de vencimientos existentes (no ajustados manualmente) según el calendario actual.
 // Devuelve la cantidad de vencimientos actualizados.
-export const recalcularFechasVencimientos = () => {
-  const config    = getConfig()
+export const recalcularFechasVencimientos = (configParam) => {
+  const config    = configParam || getConfig()
   const clientes  = getClientes()
   const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c]))
   const oblAll    = getObligacionesCliente()
