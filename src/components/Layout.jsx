@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, CalendarClock, History, Settings,
-  LogOut, Calendar, BarChart2, Bell, Calculator, Receipt,
+  LogOut, Calendar, BarChart2, Bell, Calculator, Receipt, FileCheck,
 } from 'lucide-react'
 import { useApp }  from '../context/AppContext.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
@@ -14,6 +14,7 @@ const NAV = [
   { to: '/calendario',          label: 'Calendario',     Icon: Calendar },
   { to: '/estadisticas',        label: 'Estadísticas',   Icon: BarChart2 },
   { to: '/comprobantes',        label: 'Comprobantes',   Icon: Receipt },
+  { to: '/inscripciones',       label: 'Inscripciones',  Icon: FileCheck },
   { to: '/historial',           label: 'Historial',      Icon: History },
   { to: '/calculadora',         label: 'Calculadora',    Icon: Calculator },
   { to: '/configuracion',       label: 'Configuración',  Icon: Settings },

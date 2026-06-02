@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { saveVencimiento } from '../db/store.js'
 import EstadoBadge from './EstadoBadge.jsx'
+import PagoModal from './PagoModal.jsx'
 
 const ESTADOS = ['pendiente','en_proceso','presentado','pagado','no_aplica']
 
@@ -33,8 +34,10 @@ function diasLabel(estado, fecha) {
 export default function VencimientoRow({ v, onUpdate }) {
   const [open, setOpen] = useState(false)
   const [notas, setNotas] = useState(v.notas || '')
+  const [pagoModal, setPagoModal] = useState(false)
 
   const cambiarEstado = (estado) => {
+    if (estado === 'pagado') { setPagoModal(true); return }
     saveVencimiento({ ...v, estado })
     onUpdate?.()
     setOpen(false)
@@ -74,6 +77,10 @@ export default function VencimientoRow({ v, onUpdate }) {
           <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? 'rotate-180':''}`} />
         </div>
       </div>
+
+      {pagoModal && (
+        <PagoModal v={v} onClose={() => setPagoModal(false)} onSave={() => { onUpdate?.(); setOpen(false) }} />
+      )}
 
       {open && (
         <div className="border-t border-gray-100 px-3 py-3 bg-gray-50 space-y-3">

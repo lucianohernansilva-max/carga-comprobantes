@@ -1,12 +1,14 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Pencil, RefreshCw, CalendarClock, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Pencil, RefreshCw, CalendarClock, FileCheck, Clock } from 'lucide-react'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useApp } from '../context/AppContext.jsx'
 import { generarVencimientosCliente } from '../db/generador.js'
-import { getCliente } from '../db/store.js'
+import { getCliente, getInscripciones } from '../db/store.js'
 import EstadoBadge from '../components/EstadoBadge.jsx'
 import VencimientoRow from '../components/VencimientoRow.jsx'
+import ChecklistMensual from '../components/ChecklistMensual.jsx'
+import SemaforoFacturacion from '../components/SemaforoFacturacion.jsx'
 
 const CONDICION_LABELS = {
   monotributista:     'Monotributista',
@@ -26,6 +28,7 @@ export default function ClienteDetalle() {
   )
 
   const oblsCliente  = obligaciones.filter(o => o.clienteId === id && o.activa)
+  const inscCliente  = getInscripciones(id)
   const vencCliente  = vencimientos
     .filter(v => v.clienteId === id)
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
@@ -124,6 +127,53 @@ export default function ClienteDetalle() {
         </div>
       ) : (
         proximos.map(v => <VencimientoRow key={v.id} v={v} onUpdate={refresh} />)
+      )}
+
+      {/* Semáforo de facturación — solo Monotributistas */}
+      {cliente.condicionFiscal === 'monotributista' && (
+        <div className="mt-5">
+          <SemaforoFacturacion cliente={cliente} />
+        </div>
+      )}
+
+      {/* Checklist mensual */}
+      <div className="mt-5">
+        <ChecklistMensual clienteId={id} condicionFiscal={cliente.condicionFiscal} />
+      </div>
+
+      {/* Inscripciones y certificados */}
+      {inscCliente.length > 0 && (
+        <div className="mt-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-bold text-gray-700">Inscripciones y certificados</p>
+            <Link to="/inscripciones" className="text-xs text-primary underline">Ver todos</Link>
+          </div>
+          <div className="space-y-1.5">
+            {inscCliente.map(item => {
+              const dias = item.fechaVencimiento ? differenceInDays(parseISO(item.fechaVencimiento), new Date()) : null
+              const urgente = dias !== null && dias <= (item.diasRecordatorio || 30)
+              return (
+                <div key={item.id} className={`rounded-lg border px-3 py-2.5 flex items-center gap-3 ${urgente ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-200'}`}>
+                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <FileCheck size={11} className="text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{item.nombre}</p>
+                    {item.organismo && <p className="text-xs text-gray-400">{item.organismo}</p>}
+                  </div>
+                  {item.fechaVencimiento && (
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-semibold text-gray-700">{format(parseISO(item.fechaVencimiento), 'dd/MM/yy', { locale: es })}</p>
+                      {dias !== null && dias >= 0 && dias <= 60 && (
+                        <p className={`text-xs ${dias <= 7 ? 'text-red-600 font-bold' : 'text-orange-600'}`}>{dias}d</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
     </div>
   )

@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
 import { differenceInDays, parseISO, format, startOfMonth, endOfMonth, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { AlertTriangle, CheckCircle, Clock, CalendarDays, TrendingUp } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, CalendarDays, TrendingUp, FileCheck } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { saveVencimiento } from '../db/store.js'
-import logoImg from '../assets/logo.png'
+import { saveVencimiento, getFacturacionMono, LIMITES_MONOTRIBUTO_DEFAULT } from '../db/store.js'
+import PagoModal from '../components/PagoModal.jsx'
 
 const HORIZONTES = [
   { label: '30 días', days: 30 },
@@ -61,13 +61,17 @@ function EstadoInline({ estado }) {
 
 function VencimientoTableRow({ v, onUpdate }) {
   const completado = ['pagado','presentado','no_aplica'].includes(v.estado)
+  const [pagoModal, setPagoModal] = useState(false)
 
   const cambiar = (estado) => {
+    if (estado === 'pagado') { setPagoModal(true); return }
     saveVencimiento({ ...v, estado })
     onUpdate?.()
   }
 
   return (
+    <>
+    {pagoModal && <PagoModal v={v} onClose={() => setPagoModal(false)} onSave={onUpdate} />}
     <tr className={`transition-colors ${urgencyStyle(v.estado, v.fecha)} border-b border-gray-100`}>
       {/* Fecha */}
       <td className="px-3 py-2.5 whitespace-nowrap">
@@ -134,11 +138,12 @@ function VencimientoTableRow({ v, onUpdate }) {
         )}
       </td>
     </tr>
+    </>
   )
 }
 
 export default function Dashboard() {
-  const { vencimientos, clientes, config, refresh } = useApp()
+  const { vencimientos, clientes, config, inscripciones, refresh } = useApp()
   const [horizonte, setHorizonte]  = useState(30)
   const [filtroCliente, setFiltro] = useState('')
   const [filtroEstado, setFiltroE] = useState('')
@@ -180,6 +185,35 @@ export default function Dashboard() {
       .filter(v => !filtroEstado  || v.estado === filtroEstado)
       .sort((a, b) => a.fecha.localeCompare(b.fecha))
   }, [vencimientos, hoy, hasta, filtroCliente, filtroEstado])
+
+  // Semáforo monotributo — clientes que superaron el 80%
+  const alertasSemaforo = useMemo(() => clientes
+    .filter(c => c.condicionFiscal === 'monotributista' && c.categoriaMonotributo)
+    .map(c => {
+      const limite = LIMITES_MONOTRIBUTO_DEFAULT[c.categoriaMonotributo]
+      if (!limite) return null
+      const anio = new Date().getFullYear()
+      const fact = getFacturacionMono(c.id)
+      const acumulado = Array.from({ length: 12 }, (_, i) => {
+        const k = `${anio}-${String(i + 1).padStart(2, '0')}`
+        return fact[k] || 0
+      }).reduce((a, b) => a + b, 0)
+      const pct = (acumulado / limite) * 100
+      return pct >= 80 ? { cliente: c, pct: Math.round(pct), acumulado, limite } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.pct - a.pct)
+  , [clientes])
+
+  // Inscripciones próximas a vencer
+  const inscripcionesProximas = useMemo(() => inscripciones
+    .filter(i => {
+      if (!i.fechaVencimiento || i.estado === 'no_aplica') return false
+      const dias = differenceInDays(parseISO(i.fechaVencimiento), new Date())
+      return dias >= 0 && dias <= (i.diasRecordatorio || 30)
+    })
+    .sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento))
+  , [inscripciones])
 
   const nombreEstudio = config?.estudio?.nombre || 'Estudio Contable'
 
@@ -224,6 +258,27 @@ export default function Dashboard() {
                   {vencidos.length > 5 && (
                     <span className="text-xs text-red-400">y {vencidos.length - 5} más…</span>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Alertas semáforo monotributo ─────────────────────── */}
+        {alertasSemaforo.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <TrendingUp className="text-amber-500 shrink-0 mt-0.5" size={18} />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-amber-700 mb-1.5">
+                  {alertasSemaforo.length} cliente{alertasSemaforo.length !== 1 ? 's' : ''} con facturación Monotributo en zona de alerta
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {alertasSemaforo.map(({ cliente, pct }) => (
+                    <span key={cliente.id} className={`text-xs font-semibold px-2 py-0.5 rounded-full ${pct >= 95 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {cliente.nombre} — {pct}%
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
@@ -362,6 +417,37 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+        {/* ─── Inscripciones próximas ───────────────────────────── */}
+        {inscripcionesProximas.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileCheck size={14} className="text-primary" />
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Inscripciones y certificados próximos</p>
+              </div>
+              <span className="text-xs text-gray-400">{inscripcionesProximas.length} registro{inscripcionesProximas.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {inscripcionesProximas.map(item => {
+                const cliente = clientes.find(c => c.id === item.clienteId)
+                const dias = differenceInDays(parseISO(item.fechaVencimiento), new Date())
+                return (
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="w-16 text-center shrink-0">
+                      <p className="text-sm font-bold text-gray-800">{format(parseISO(item.fechaVencimiento), 'dd/MM', { locale: es })}</p>
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${dias <= 7 ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{dias}d</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{item.nombre}</p>
+                      <p className="text-xs text-gray-500 truncate">{cliente?.nombre}{item.organismo && ` · ${item.organismo}`}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
