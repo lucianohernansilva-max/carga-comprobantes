@@ -214,6 +214,26 @@ export const limpiarVencimientosMonotributo = () => {
   if (filtrados.length !== venc.length) persist(KEYS.vencimientos, filtrados)
 }
 
+// Elimina vencimientos de tipos que no corresponden a la condición fiscal del cliente.
+// Por ejemplo: elimina monotributo-cuota de clientes RI.
+export const limpiarVencimientosNoCorrespondientes = () => {
+  const clientes = getClientes()
+  const TIPOS_SOLO_MONO  = new Set(['monotributo-cuota', 'monotributo-recategorizacion'])
+  const venc = load(KEYS.vencimientos) || []
+  const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c]))
+  const filtrados = venc.filter(v => {
+    const cliente = clienteMap[v.clienteId]
+    if (!cliente) return true
+    if (TIPOS_SOLO_MONO.has(v.tipoObligacionId) && cliente.condicionFiscal !== 'monotributista') {
+      console.debug('[Cleanup] Eliminando %s de cliente RI/autónomo: %s', v.tipoObligacionId, cliente.nombre)
+      return false
+    }
+    return true
+  })
+  if (filtrados.length !== venc.length) persist(KEYS.vencimientos, filtrados)
+  return venc.length - filtrados.length
+}
+
 // Recalcula estado VENCIDO para los que pasaron la fecha sin acción
 export const actualizarEstadosVencidos = () => {
   const hoy  = new Date().toISOString().slice(0, 10)

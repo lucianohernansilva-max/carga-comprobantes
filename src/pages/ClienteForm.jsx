@@ -43,20 +43,35 @@ export default function ClienteForm() {
     }
   }, [id, isEdit])
 
+  // Obligaciones que se activan automáticamente al seleccionar una condición fiscal
+  const OBLS_CORE_POR_CONDICION = {
+    monotributista:      ['monotributo-cuota', 'monotributo-recategorizacion'],
+    responsable_inscripto: ['iva-mensual'],
+    autonomo:            ['autonomos-aportes'],
+    exento:              [],
+  }
+  // Obligaciones que se desactivan automáticamente al cambiar de condición fiscal
+  const OBLS_DESACTIVAR_POR_CONDICION = {
+    monotributista:      ['iibb-local'],
+    responsable_inscripto: ['monotributo-cuota', 'monotributo-recategorizacion'],
+    autonomo:            ['monotributo-cuota', 'monotributo-recategorizacion'],
+    exento:              ['monotributo-cuota', 'monotributo-recategorizacion'],
+  }
+
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }))
-    // Al cambiar a Monotributista: desactivar IIBB Local y activar cuota + recategorización
-    if (k === 'condicionFiscal' && v === 'monotributista') {
+    if (k === 'condicionFiscal') {
       setObligaciones(prev => {
-        let updated = prev.map(o =>
-          o.tipoObligacionId === 'iibb-local' ? { ...o, activa: false } : o
-        )
-        for (const tipoId of ['monotributo-cuota', 'monotributo-recategorizacion']) {
-          if (!updated.find(o => o.tipoObligacionId === tipoId)) {
-            updated = [...updated, { tipoObligacionId: tipoId, activa: true, configuracionExtra: {} }]
-          } else {
-            updated = updated.map(o => o.tipoObligacionId === tipoId ? { ...o, activa: true } : o)
-          }
+        let updated = [...prev]
+        // Desactivar las que no corresponden
+        const desactivar = new Set(OBLS_DESACTIVAR_POR_CONDICION[v] || [])
+        updated = updated.map(o => desactivar.has(o.tipoObligacionId) ? { ...o, activa: false } : o)
+        // Activar las core de la nueva condición
+        const activar = OBLS_CORE_POR_CONDICION[v] || []
+        for (const tipoId of activar) {
+          const exist = updated.find(o => o.tipoObligacionId === tipoId)
+          if (!exist) updated = [...updated, { tipoObligacionId: tipoId, activa: true, configuracionExtra: {} }]
+          else updated = updated.map(o => o.tipoObligacionId === tipoId ? { ...o, activa: true } : o)
         }
         return updated
       })

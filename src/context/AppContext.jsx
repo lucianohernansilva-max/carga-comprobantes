@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import {
   getClientes, getVencimientos, getTiposObligacion, getObligacionesCliente,
   getConfig, subscribe, actualizarEstadosVencidos, limpiarIIBBMonotributistas,
-  getInscripciones,
+  limpiarVencimientosNoCorrespondientes, getInscripciones,
 } from '../db/store.js'
 
 const AppContext = createContext(null)
@@ -26,7 +26,8 @@ export const AppProvider = ({ children }) => {
   }, [])
 
   useEffect(() => {
-    limpiarIIBBMonotributistas()  // migración: elimina IIBB Local de monotributistas
+    limpiarIIBBMonotributistas()              // migración: elimina IIBB Local de monotributistas
+    limpiarVencimientosNoCorrespondientes()   // migración: elimina vencimientos de tipo incorrecto para la condición fiscal
     refresh()
     const unsub = subscribe(refresh)
     return unsub

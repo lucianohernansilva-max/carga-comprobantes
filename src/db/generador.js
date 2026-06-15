@@ -4,7 +4,7 @@
 import { addMonths, format, getMonth, getYear } from 'date-fns'
 import { calcularFechaVencimiento, PATRONES, calcPatronDiaFijo } from './fechas.js'
 import { ajustarDiaHabil } from './feriados.js'
-import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion, getClientes, updateVencimientosFechas, limpiarIIBBMonotributistas, limpiarVencimientosMonotributo, saveObligacionCliente } from './store.js'
+import { getConfig, getVencimientos, bulkSaveVencimientos, getObligacionesCliente, getTipoObligacion, getClientes, updateVencimientosFechas, limpiarIIBBMonotributistas, limpiarVencimientosMonotributo, limpiarVencimientosNoCorrespondientes, saveObligacionCliente } from './store.js'
 
 // Genera vencimientos para un cliente desde hoy hasta horizonte meses
 export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = {}) => {
@@ -17,6 +17,13 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
   for (const obl of obligaciones) {
     const tipo = getTipoObligacion(obl.tipoObligacionId)
     if (!tipo || !tipo.activo) continue
+
+    // Guardia de seguridad: no generar si el tipo no aplica a la condición fiscal del cliente
+    if (tipo.condicionesFiscales?.length > 0 && !tipo.condicionesFiscales.includes(cliente.condicionFiscal)) {
+      console.debug('[Generador] Saltando %s para %s (condición: %s, aplica a: %s)',
+        tipo.nombre, cliente.nombre, cliente.condicionFiscal, tipo.condicionesFiscales.join(','))
+      continue
+    }
 
     const configEfectivo = { ...tipo.configuracion, ...(obl.configuracionExtra || {}) }
 
@@ -105,27 +112,54 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
 }
 
 export const generarVencimientosTodos = (clientes) => {
+  // Debug: mostrar condicionFiscal de los primeros 5 clientes para detectar inconsistencias
+  const muestra = clientes.slice(0, 5)
+  console.debug('[Debug condicionFiscal] muestra de %d clientes:', muestra.length)
+  muestra.forEach(c => console.debug('  %s → condicionFiscal="%s"', c.nombre, c.condicionFiscal))
   for (const c of clientes) generarVencimientosCliente(c)
 }
 
-// Garantiza que un cliente monotributista tenga las obligaciones base activadas.
-const asegurarObligacionesMonotributista = (cliente) => {
+// Obligaciones mínimas obligatorias por condición fiscal
+const OBLS_CORE = {
+  monotributista:       ['monotributo-cuota', 'monotributo-recategorizacion'],
+  responsable_inscripto: ['iva-mensual'],
+  autonomo:             ['autonomos-aportes'],
+  exento:               [],
+}
+
+// Garantiza que un cliente tenga las obligaciones core activas para su condición fiscal.
+const asegurarObligacionesCliente = (cliente) => {
+  const tiposCore = OBLS_CORE[cliente.condicionFiscal] || []
+  if (tiposCore.length === 0) return
   const oblsExist = getObligacionesCliente(cliente.id)
-  for (const tipoId of ['monotributo-cuota', 'monotributo-recategorizacion']) {
+  for (const tipoId of tiposCore) {
     const exist = oblsExist.find(o => o.tipoObligacionId === tipoId)
     if (!exist) {
       saveObligacionCliente({ clienteId: cliente.id, tipoObligacionId: tipoId, activa: true, configuracionExtra: {} })
-      console.debug('[Monotributo] Obligación creada automáticamente: cliente=%s tipoId=%s', cliente.nombre, tipoId)
+      console.debug('[ObligCore] Creada: cliente=%s condicion=%s tipoId=%s', cliente.nombre, cliente.condicionFiscal, tipoId)
     } else if (!exist.activa) {
       saveObligacionCliente({ ...exist, activa: true })
-      console.debug('[Monotributo] Obligación reactivada: cliente=%s tipoId=%s', cliente.nombre, tipoId)
+      console.debug('[ObligCore] Reactivada: cliente=%s tipoId=%s', cliente.nombre, tipoId)
     }
   }
+}
+
+// Alias backward-compat interno
+const asegurarObligacionesMonotributista = (cliente) => asegurarObligacionesCliente(cliente)
+
+// Asegura obligaciones core para todos los clientes (se llama desde guardarCalendario)
+export const asegurarObligacionesTodos = () => {
+  const clientes = getClientes()
+  clientes.forEach(asegurarObligacionesCliente)
+  return clientes.length
 }
 
 // Limpia IIBB Local de monotributistas y regenera sus vencimientos correctamente.
 export const regenerarVencimientosMonotributistas = () => {
   limpiarIIBBMonotributistas()
+  // Eliminar vencimientos de tipos que no corresponden a la condición fiscal (BUG 1 cleanup)
+  const eliminados = limpiarVencimientosNoCorrespondientes()
+  if (eliminados > 0) console.debug('[Generador] Eliminados %d vencimientos incorrectos (tipo no aplica a condición fiscal)', eliminados)
   // Eliminar vencimientos pendientes/vencidos de monotributo para regenerarlos con fecha fresca
   limpiarVencimientosMonotributo()
   const config = getConfig()
