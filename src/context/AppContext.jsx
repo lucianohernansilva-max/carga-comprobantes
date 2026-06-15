@@ -4,6 +4,7 @@ import {
   getConfig, subscribe, actualizarEstadosVencidos, limpiarIIBBMonotributistas,
   limpiarVencimientosNoCorrespondientes, getInscripciones,
 } from '../db/store.js'
+import { sincronizarTiposPredefinidos } from '../db/seed.js'
 
 const AppContext = createContext(null)
 
@@ -26,6 +27,7 @@ export const AppProvider = ({ children }) => {
   }, [])
 
   useEffect(() => {
+    sincronizarTiposPredefinidos()            // migración: asegura que todos los tipos tienen condicionesFiscales
     limpiarIIBBMonotributistas()              // migración: elimina IIBB Local de monotributistas
     limpiarVencimientosNoCorrespondientes()   // migración: elimina vencimientos de tipo incorrecto para la condición fiscal
     refresh()

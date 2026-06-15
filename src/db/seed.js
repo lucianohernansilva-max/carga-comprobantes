@@ -236,6 +236,24 @@ const buildObligaciones = () => [
   { id: 'obl-12', clienteId: 'cliente-3', tipoObligacionId: 'bienes-personales',         activa: true, configuracionExtra: {} },
 ]
 
+// Migración idempotente: asegura que todos los tipos predefinidos existen y tienen condicionesFiscales.
+// Se llama en cada arranque para reparar datos de versiones anteriores sin el campo.
+export const sincronizarTiposPredefinidos = () => {
+  const stored = getTiposObligacion()
+  const storedMap = Object.fromEntries(stored.map(t => [t.id, t]))
+  for (const tipo of TIPOS_PREDEFINIDOS) {
+    const exist = storedMap[tipo.id]
+    // Si no existe, crearlo. Si existe pero le falta condicionesFiscales, actualizar solo ese campo.
+    if (!exist) {
+      saveTipoObligacion(tipo)
+      console.debug('[Seed] Tipo creado (faltaba): %s', tipo.id)
+    } else if (!exist.condicionesFiscales && tipo.condicionesFiscales) {
+      saveTipoObligacion({ ...exist, condicionesFiscales: tipo.condicionesFiscales })
+      console.debug('[Seed] condicionesFiscales agregado a tipo existente: %s → [%s]', tipo.id, tipo.condicionesFiscales.join(','))
+    }
+  }
+}
+
 export const initSeed = () => {
   if (isInitialized()) return
 

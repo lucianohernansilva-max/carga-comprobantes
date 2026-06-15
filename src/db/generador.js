@@ -18,11 +18,14 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
     const tipo = getTipoObligacion(obl.tipoObligacionId)
     if (!tipo || !tipo.activo) continue
 
-    // Guardia de seguridad: no generar si el tipo no aplica a la condición fiscal del cliente
-    if (tipo.condicionesFiscales?.length > 0 && !tipo.condicionesFiscales.includes(cliente.condicionFiscal)) {
-      console.debug('[Generador] Saltando %s para %s (condición: %s, aplica a: %s)',
-        tipo.nombre, cliente.nombre, cliente.condicionFiscal, tipo.condicionesFiscales.join(','))
-      continue
+    // Guardia: no generar si condicionesFiscales del tipo no incluye la condición del cliente.
+    // Solo aplica si condicionesFiscales está definida Y no está vacía (tipos legacy sin el campo pasan).
+    if (Array.isArray(tipo.condicionesFiscales) && tipo.condicionesFiscales.length > 0) {
+      if (!tipo.condicionesFiscales.includes(cliente.condicionFiscal)) {
+        console.debug('[Generador] SKIP %s para "%s" — condición=%s no está en [%s]',
+          tipo.id, cliente.nombre, cliente.condicionFiscal, tipo.condicionesFiscales.join(','))
+        continue
+      }
     }
 
     const configEfectivo = { ...tipo.configuracion, ...(obl.configuracionExtra || {}) }
@@ -39,7 +42,8 @@ export const generarVencimientosCliente = (cliente, { horizonte = 12, desde } = 
           patron: tipo.patron, anio, mes, cliente, patronConfig: configEfectivo, appConfig: config, obligacionId: tipo.id,
         })
         if (!result) continue
-        const fv = ajustarDiaHabil(result.fecha)
+        // PATRON_DIA_FIJO no aplica ajuste de día hábil — el vencimiento es el día exacto
+        const fv = tipo.patron === PATRONES.PATRON_DIA_FIJO ? result.fecha : ajustarDiaHabil(result.fecha)
         const periodo = `${anio}-${String(mes).padStart(2, '0')}`
         nuevos.push({
           clienteId:          cliente.id,
@@ -115,7 +119,9 @@ export const generarVencimientosTodos = (clientes) => {
   // Debug: mostrar condicionFiscal de los primeros 5 clientes para detectar inconsistencias
   const muestra = clientes.slice(0, 5)
   console.debug('[Debug condicionFiscal] muestra de %d clientes:', muestra.length)
-  muestra.forEach(c => console.debug('  %s → condicionFiscal="%s"', c.nombre, c.condicionFiscal))
+  muestra.forEach(c => console.debug('  "%s" → condicionFiscal="%s"', c.nombre, c.condicionFiscal))
+  // Asegurar obligaciones core antes de generar (ej: iva-mensual para RI)
+  clientes.forEach(asegurarObligacionesCliente)
   for (const c of clientes) generarVencimientosCliente(c)
 }
 

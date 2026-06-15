@@ -91,11 +91,13 @@ export const calcPatronCuit = ({ anio, mes, terminacion, patronConfig, tablaAfip
 }
 
 // ─── PATRON_DIA_FIJO ──────────────────────────────────────────────────────────
+// La fecha de día fijo (ej: Monotributo día 20) no se ajusta por fin de semana ni feriados.
+// El vencimiento es siempre exactamente ese día del mes.
 export const calcPatronDiaFijo = ({ anio, mes, patronConfig, appConfig, obligacionId }) => {
   const diaManual = appConfig?.tablaFechasFijas?.[obligacionId]?.[String(anio)]?.[String(mes)]
   const dia = diaManual != null ? diaManual : (patronConfig.dia || 20)
   const fecha = fechaSegura(anio, mes, dia)
-  return { fecha: format(ajustarFinDeSemana(fecha), 'yyyy-MM-dd'), tentativo: diaManual == null }
+  return { fecha: format(fecha, 'yyyy-MM-dd'), tentativo: diaManual == null }
 }
 
 // ─── PATRON_SEMESTRAL_FIJO ────────────────────────────────────────────────────
