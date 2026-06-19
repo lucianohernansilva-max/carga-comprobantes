@@ -218,7 +218,10 @@ export const recalcularFechasVencimientos = (configParam) => {
     })
     if (!result) continue
 
-    const nuevaFecha = ajustarDiaHabil(result.fecha)
+    // PATRON_DIA_FIJO nunca ajusta por feriado/fin de semana — el día es fijo
+    const nuevaFecha = tipo.patron === PATRONES.PATRON_DIA_FIJO
+      ? result.fecha
+      : ajustarDiaHabil(result.fecha)
     if (nuevaFecha !== v.fecha || result.tentativo !== v.tentativo) {
       updates.push({ id: v.id, fecha: nuevaFecha, tentativo: result.tentativo })
     }

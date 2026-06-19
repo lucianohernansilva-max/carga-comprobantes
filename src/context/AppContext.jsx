@@ -2,9 +2,10 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import {
   getClientes, getVencimientos, getTiposObligacion, getObligacionesCliente,
   getConfig, subscribe, actualizarEstadosVencidos, limpiarIIBBMonotributistas,
-  limpiarVencimientosNoCorrespondientes, getInscripciones,
+  limpiarVencimientosNoCorrespondientes, limpiarVencimientosMonotributo, getInscripciones,
 } from '../db/store.js'
 import { sincronizarTiposPredefinidos } from '../db/seed.js'
+import { asegurarObligacionesTodos, generarVencimientosTodos, recalcularFechasVencimientos } from '../db/generador.js'
 
 const AppContext = createContext(null)
 
@@ -27,9 +28,33 @@ export const AppProvider = ({ children }) => {
   }, [])
 
   useEffect(() => {
-    sincronizarTiposPredefinidos()            // migración: asegura que todos los tipos tienen condicionesFiscales
-    limpiarIIBBMonotributistas()              // migración: elimina IIBB Local de monotributistas
-    limpiarVencimientosNoCorrespondientes()   // migración: elimina vencimientos de tipo incorrecto para la condición fiscal
+    // ── Migración de datos ────────────────────────────────────────────────────
+    sincronizarTiposPredefinidos()            // asegura condicionesFiscales en todos los tipos
+    limpiarIIBBMonotributistas()              // elimina IIBB Local de monotributistas
+    limpiarVencimientosNoCorrespondientes()   // elimina vencimientos de tipo incorrecto para la condición fiscal
+
+    // ── Garantizar obligaciones core + regenerar vencimientos ─────────────────
+    const clientes = getClientes()
+    asegurarObligacionesTodos()              // iva-mensual para RI, monotributo-cuota para monotributistas, etc.
+    limpiarVencimientosMonotributo()         // borra monotributo pendientes/vencidos para regenerar con fecha correcta
+    generarVencimientosTodos(clientes)       // genera vencimientos faltantes para todos los clientes
+    recalcularFechasVencimientos()           // recalcula fechas de vencimientos no ajustados manualmente
+
+    // ── Debug: confirmar resultados ───────────────────────────────────────────
+    const vencimientosActuales = getVencimientos()
+    const junio2026 = '2026-06'
+    const monotributoJunio = vencimientosActuales.filter(v =>
+      v.tipoObligacionId === 'monotributo-cuota' && v.periodo === junio2026
+    )
+    const ivaJunio = vencimientosActuales.filter(v =>
+      v.tipoObligacionId === 'iva-mensual' && v.periodo === junio2026
+    )
+    console.info('[Init] Monotributo: %d clientes con vencimiento %s',
+      monotributoJunio.length,
+      monotributoJunio[0]?.fecha ? `${monotributoJunio[0].fecha.split('-').reverse().join('/')}` : 'sin fecha'
+    )
+    console.info('[Init] IVA: %d clientes con vencimiento generado para junio 2026', ivaJunio.length)
+
     refresh()
     const unsub = subscribe(refresh)
     return unsub
