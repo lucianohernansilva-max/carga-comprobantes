@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { useApp }  from '../context/AppContext.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { differenceInDays, parseISO } from 'date-fns'
+import { differenceInDays, parseISO, format } from 'date-fns'
 const NAV = [
   { to: '/',                    label: 'Dashboard',      Icon: LayoutDashboard },
   { to: '/notificaciones',      label: 'Notificaciones', Icon: Bell },
@@ -25,20 +25,26 @@ export default function Layout({ children }) {
   const { onLogout }     = useAuth()
   const hoy = new Date().toISOString().slice(0, 10)
 
+  const mesCurso = format(new Date(), 'yyyy-MM')
+  const inicioMes = mesCurso + '-01'
+  // último día del mes actual
+  const finMesDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)
+  const finMes = finMesDate.toISOString().slice(0, 10)
+
+  // Vencidos sin completar (meses anteriores) — badge rojo en Vencimientos
   const urgentes = vencimientos.filter(v =>
-    v.estado === 'pendiente' && v.fecha <= hoy
+    v.estado === 'pendiente' && v.fecha < inicioMes
   ).length
 
-  const proximos7 = vencimientos.filter(v => {
-    if (v.estado !== 'pendiente') return false
-    const dias = differenceInDays(parseISO(v.fecha), new Date())
-    return dias >= 0 && dias <= 7
-  }).length
+  // Pendientes del mes en curso — caja de aviso en sidebar
+  const pendientesMes = vencimientos.filter(v =>
+    v.estado === 'pendiente' && v.fecha >= inicioMes && v.fecha <= finMes
+  ).length
 
+  // Alertas para Notificaciones: pendientes del mes en curso o vencidos
   const alertasNotif = vencimientos.filter(v => {
     if (!['pendiente','en_proceso'].includes(v.estado) || v.silenciado) return false
-    const dias = differenceInDays(parseISO(v.fecha), new Date())
-    return dias <= 7
+    return v.fecha <= finMes
   }).length
 
   return (
@@ -77,10 +83,10 @@ export default function Layout({ children }) {
           ))}
         </nav>
 
-        {proximos7 > 0 && (
+        {pendientesMes > 0 && (
           <div className="mx-3 mb-2 p-2.5 bg-warning/10 rounded-lg border border-warning/30">
             <p className="text-xs font-semibold text-warning">
-              ⚠ {proximos7} venc. en 7 días
+              ⚠ {pendientesMes} venc. este mes
             </p>
           </div>
         )}

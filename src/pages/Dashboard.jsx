@@ -1,16 +1,13 @@
 import { useState, useMemo } from 'react'
-import { differenceInDays, parseISO, format, startOfMonth, endOfMonth, addDays } from 'date-fns'
+import { differenceInDays, parseISO, format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { AlertTriangle, CheckCircle, Clock, CalendarDays, TrendingUp, FileCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, CalendarDays, TrendingUp, FileCheck, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { saveVencimiento, getFacturacionMono, LIMITES_MONOTRIBUTO_DEFAULT } from '../db/store.js'
 import PagoModal from '../components/PagoModal.jsx'
 
-const HORIZONTES = [
-  { label: '30 días', days: 30 },
-  { label: '60 días', days: 60 },
-  { label: '90 días', days: 90 },
-]
+// Devuelve 'YYYY-MM' para un Date
+const toYearMonth = (d) => format(d, 'yyyy-MM')
 
 function urgencyStyle(estado, fecha) {
   if (['pagado','presentado','no_aplica'].includes(estado))
@@ -144,47 +141,54 @@ function VencimientoTableRow({ v, onUpdate }) {
 
 export default function Dashboard() {
   const { vencimientos, clientes, config, inscripciones, refresh } = useApp()
-  const [horizonte, setHorizonte]  = useState(30)
+  const [mesSeleccionado, setMes] = useState(() => toYearMonth(new Date()))
   const [filtroCliente, setFiltro] = useState('')
   const [filtroEstado, setFiltroE] = useState('')
 
-  const hoy    = new Date().toISOString().slice(0, 10)
-  const hasta  = addDays(new Date(), horizonte).toISOString().slice(0, 10)
-  const manana = addDays(new Date(), 1).toISOString().slice(0, 10)
-  const en7    = addDays(new Date(), 7).toISOString().slice(0, 10)
-  const inicioMes = startOfMonth(new Date()).toISOString().slice(0, 10)
-  const finMes    = endOfMonth(new Date()).toISOString().slice(0, 10)
+  const hoy       = new Date().toISOString().slice(0, 10)
+  const mesActual = toYearMonth(new Date())
 
-  // Vencidos sin completar
+  // Navegación de mes
+  const mesDate   = new Date(mesSeleccionado + '-01')
+  const inicioMes = startOfMonth(mesDate).toISOString().slice(0, 10)
+  const finMes    = endOfMonth(mesDate).toISOString().slice(0, 10)
+  const mesLabel  = format(mesDate, "MMMM yyyy", { locale: es })
+  const irMes     = (delta) => setMes(toYearMonth(delta > 0 ? addMonths(mesDate, 1) : subMonths(mesDate, 1)))
+
+  // Vencidos sin completar de meses anteriores — siempre visibles
   const vencidos = vencimientos.filter(v =>
-    v.fecha < hoy && !['pagado','presentado','no_aplica'].includes(v.estado)
+    v.fecha < inicioMes && !['pagado','presentado','no_aplica'].includes(v.estado)
   )
 
-  // Stats
-  const hoyCount  = vencimientos.filter(v =>
+  // Stats del mes actual (siempre mes en curso, no cambia con el selector)
+  const en7 = new Date(); en7.setDate(en7.getDate() + 7)
+  const en7Str = en7.toISOString().slice(0, 10)
+
+  const hoyCount = vencimientos.filter(v =>
     v.fecha === hoy && !['pagado','presentado','no_aplica'].includes(v.estado)
   ).length
 
   const semanaCount = vencimientos.filter(v =>
-    v.fecha > hoy && v.fecha <= en7 && !['pagado','presentado','no_aplica'].includes(v.estado)
+    v.fecha > hoy && v.fecha <= en7Str && !['pagado','presentado','no_aplica'].includes(v.estado)
   ).length
 
-  const pendientesTotal = vencimientos.filter(v =>
-    !['pagado','presentado','no_aplica'].includes(v.estado)
+  const pendientesMes = vencimientos.filter(v =>
+    !['pagado','presentado','no_aplica'].includes(v.estado) &&
+    v.fecha >= inicioMes && v.fecha <= finMes
   ).length
 
   const completadosMes = vencimientos.filter(v =>
     ['pagado','presentado'].includes(v.estado) && v.fecha >= inicioMes && v.fecha <= finMes
   ).length
 
-  // Lista próximos con filtros
+  // Lista del mes seleccionado con filtros
   const proximos = useMemo(() => {
     return vencimientos
-      .filter(v => v.fecha >= hoy && v.fecha <= hasta)
+      .filter(v => v.fecha >= inicioMes && v.fecha <= finMes)
       .filter(v => !filtroCliente || v.clienteId === filtroCliente)
       .filter(v => !filtroEstado  || v.estado === filtroEstado)
       .sort((a, b) => a.fecha.localeCompare(b.fecha))
-  }, [vencimientos, hoy, hasta, filtroCliente, filtroEstado])
+  }, [vencimientos, inicioMes, finMes, filtroCliente, filtroEstado])
 
   // Semáforo monotributo — clientes que superaron el 80%
   const alertasSemaforo = useMemo(() => clientes
@@ -308,14 +312,14 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className={`rounded-xl p-4 border ${pendientesMes > 0 ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                <AlertTriangle size={18} className="text-blue-500" />
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${pendientesMes > 0 ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                <AlertTriangle size={18} className={pendientesMes > 0 ? 'text-blue-500' : 'text-gray-400'} />
               </div>
               <div>
-                <p className="text-2xl font-black text-gray-800 leading-none">{pendientesTotal}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Pendientes</p>
+                <p className={`text-2xl font-black leading-none ${pendientesMes > 0 ? 'text-blue-600' : 'text-gray-700'}`}>{pendientesMes}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Pendientes (mes)</p>
               </div>
             </div>
           </div>
@@ -335,19 +339,33 @@ export default function Dashboard() {
 
         {/* ─── Filtros ──────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Horizonte */}
-          <div className="flex gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
-            {HORIZONTES.map(h => (
+          {/* Selector de mes */}
+          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+            <button
+              onClick={() => irMes(-1)}
+              className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
+              title="Mes anterior"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="text-xs font-semibold text-gray-700 capitalize px-2 min-w-[110px] text-center">
+              {mesLabel}
+            </span>
+            <button
+              onClick={() => irMes(1)}
+              className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
+              title="Mes siguiente"
+            >
+              <ChevronRight size={14} />
+            </button>
+            {mesSeleccionado !== mesActual && (
               <button
-                key={h.days}
-                onClick={() => setHorizonte(h.days)}
-                className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-                  horizonte === h.days ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                onClick={() => setMes(mesActual)}
+                className="ml-1 text-xs text-primary hover:underline px-1"
               >
-                {h.label}
+                Hoy
               </button>
-            ))}
+            )}
           </div>
 
           <select
@@ -389,8 +407,8 @@ export default function Dashboard() {
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Próximos {horizonte} días
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider capitalize">
+                {mesLabel}
               </p>
             </div>
             <div className="overflow-x-auto">

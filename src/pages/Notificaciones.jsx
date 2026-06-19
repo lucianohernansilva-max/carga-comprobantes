@@ -1,32 +1,39 @@
 import { useState, useMemo } from 'react'
-import { MessageCircle, Mail, Bell, Filter } from 'lucide-react'
-import { differenceInDays, parseISO, format } from 'date-fns'
+import { MessageCircle, Mail, Bell, ChevronLeft, ChevronRight } from 'lucide-react'
+import { differenceInDays, parseISO, format, addMonths, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useApp } from '../context/AppContext.jsx'
 import { whatsappUrl, emailUrl } from '../db/notificaciones.js'
 
-const DIAS_ALERTA_DEFAULT = [7, 3, 1]
+const toYearMonth = (d) => format(d, 'yyyy-MM')
 
 export default function Notificaciones() {
   const { vencimientos, config }  = useApp()
   const [filtro, setFiltro]       = useState('todos')  // todos | whatsapp | email | sinContacto
+  const [mesSeleccionado, setMes] = useState(() => toYearMonth(new Date()))
 
-  const diasAlerta = config.alertasDias || DIAS_ALERTA_DEFAULT
   const nombreEstudio = config.estudio?.nombre
+  const mesActual     = toYearMonth(new Date())
+  const mesDate       = new Date(mesSeleccionado + '-01')
+  const mesLabel      = format(mesDate, "MMMM yyyy", { locale: es })
+  const inicioMes     = startOfMonth(mesDate).toISOString().slice(0, 10)
+  const finMes        = endOfMonth(mesDate).toISOString().slice(0, 10)
+  const hoy           = new Date().toISOString().slice(0, 10)
+  const irMes         = (delta) => setMes(toYearMonth(delta > 0 ? addMonths(mesDate, 1) : subMonths(mesDate, 1)))
 
-  // Vencimientos próximos que requieren notificación
+  // Vencimientos del mes seleccionado + vencidos de meses anteriores (siempre incluidos)
   const candidatos = useMemo(() => {
-    const hoy = new Date().toISOString().slice(0,10)
     return vencimientos
       .filter(v => {
         if (!['pendiente','en_proceso'].includes(v.estado)) return false
         if (v.silenciado) return false
-        const dias = differenceInDays(parseISO(v.fecha), new Date())
-        // Incluir si cae en algún umbral de alerta o ya venció
-        return dias <= Math.max(...diasAlerta) && dias >= -5
+        // Vencidos de meses anteriores: siempre visibles
+        if (v.fecha < inicioMes) return true
+        // Del mes seleccionado
+        return v.fecha >= inicioMes && v.fecha <= finMes
       })
       .sort((a, b) => a.fecha.localeCompare(b.fecha))
-  }, [vencimientos, diasAlerta])
+  }, [vencimientos, inicioMes, finMes])
 
   const filtrados = candidatos.filter(v => {
     if (filtro === 'whatsapp')   return !!v.cliente?.whatsapp
@@ -57,6 +64,24 @@ export default function Notificaciones() {
           <h1 className="text-xl font-bold text-gray-900">Notificaciones</h1>
           <p className="text-sm text-gray-500">Enviá recordatorios a tus clientes</p>
         </div>
+      </div>
+
+      {/* Selector de mes */}
+      <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm mb-4 w-fit">
+        <button onClick={() => irMes(-1)} className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors" title="Mes anterior">
+          <ChevronLeft size={14} />
+        </button>
+        <span className="text-xs font-semibold text-gray-700 capitalize px-2 min-w-[110px] text-center">
+          {mesLabel}
+        </span>
+        <button onClick={() => irMes(1)} className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors" title="Mes siguiente">
+          <ChevronRight size={14} />
+        </button>
+        {mesSeleccionado !== mesActual && (
+          <button onClick={() => setMes(mesActual)} className="ml-1 text-xs text-primary hover:underline px-1">
+            Hoy
+          </button>
+        )}
       </div>
 
       {/* Stats rápidas */}
