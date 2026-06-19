@@ -14,6 +14,7 @@ import Notificaciones from './pages/Notificaciones.jsx'
 import CalculadoraMonotributo from './pages/CalculadoraMonotributo.jsx'
 import Comprobantes from './pages/Comprobantes.jsx'
 import Inscripciones from './pages/Inscripciones.jsx'
+import Diagnostico from './pages/Diagnostico.jsx'
 import Login from './pages/Login.jsx'
 import SetupPassword from './pages/SetupPassword.jsx'
 import { AppProvider } from './context/AppContext.jsx'
@@ -38,6 +39,7 @@ function Inner() {
         <Route path="/comprobantes"           element={<Comprobantes />} />
         <Route path="/inscripciones"          element={<Inscripciones />} />
         <Route path="/configuracion"          element={<Configuracion />} />
+        <Route path="/diagnostico"            element={<Diagnostico />} />
       </Routes>
     </Layout>
   )
