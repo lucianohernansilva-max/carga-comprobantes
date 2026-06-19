@@ -236,20 +236,36 @@ const buildObligaciones = () => [
   { id: 'obl-12', clienteId: 'cliente-3', tipoObligacionId: 'bienes-personales',         activa: true, configuracionExtra: {} },
 ]
 
-// Migración idempotente: asegura que todos los tipos predefinidos existen y tienen condicionesFiscales.
-// Se llama en cada arranque para reparar datos de versiones anteriores sin el campo.
+// Migración idempotente: asegura que todos los tipos predefinidos existen y tienen
+// condicionesFiscales, patron y configuracion correctos según la versión actual del código.
+// Se llama en cada arranque. Preserva activo/esCustom definidos por el usuario.
 export const sincronizarTiposPredefinidos = () => {
   const stored = getTiposObligacion()
   const storedMap = Object.fromEntries(stored.map(t => [t.id, t]))
   for (const tipo of TIPOS_PREDEFINIDOS) {
     const exist = storedMap[tipo.id]
-    // Si no existe, crearlo. Si existe pero le falta condicionesFiscales, actualizar solo ese campo.
     if (!exist) {
       saveTipoObligacion(tipo)
       console.debug('[Seed] Tipo creado (faltaba): %s', tipo.id)
-    } else if (!exist.condicionesFiscales && tipo.condicionesFiscales) {
-      saveTipoObligacion({ ...exist, condicionesFiscales: tipo.condicionesFiscales })
-      console.debug('[Seed] condicionesFiscales agregado a tipo existente: %s → [%s]', tipo.id, tipo.condicionesFiscales.join(','))
+    } else {
+      // Siempre resincronizar campos estructurales desde predefinidos.
+      // condicionesFiscales, patron y configuracion no son editables por el usuario,
+      // así que los pisamos sin preguntar para corregir datos de versiones anteriores.
+      const condOk  = JSON.stringify(exist.condicionesFiscales) === JSON.stringify(tipo.condicionesFiscales)
+      const patronOk = exist.patron === tipo.patron
+      if (!condOk || !patronOk) {
+        saveTipoObligacion({
+          ...exist,
+          condicionesFiscales: tipo.condicionesFiscales,
+          patron:              tipo.patron,
+          configuracion:       tipo.configuracion,
+        })
+        console.debug('[Seed] Tipo resincronizado: %s — condiciones=[%s] patron=%s',
+          tipo.id,
+          (tipo.condicionesFiscales || []).join(','),
+          tipo.patron
+        )
+      }
     }
   }
 }

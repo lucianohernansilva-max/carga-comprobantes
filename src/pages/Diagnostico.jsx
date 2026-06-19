@@ -22,15 +22,30 @@ export default function Diagnostico() {
     })
   , [clientesRI, obligaciones])
 
-  // ── 3. Vencimientos IVA junio 2026 ──────────────────────────────────────────
+  // ── 3. Vencimientos IVA con fecha en junio 2026 (IVA vence en el mes SIGUIENTE al período)
   const ivaJunio = useMemo(() =>
-    vencimientos.filter(v => v.tipoObligacionId === 'iva-mensual' && v.periodo === '2026-06')
+    vencimientos.filter(v => v.tipoObligacionId === 'iva-mensual' && v.fecha?.startsWith('2026-06'))
   , [vencimientos])
 
   // ── 4. TODOS los vencimientos IVA (sin filtro de mes) ──────────────────────
   const ivaAll = useMemo(() =>
     vencimientos.filter(v => v.tipoObligacionId === 'iva-mensual')
   , [vencimientos])
+
+  // ── 4b. Coexistencia IVA + IIBB para el mismo cliente en junio 2026 ─────────
+  const coexistenciaJunio = useMemo(() => {
+    const ivaPorCliente   = new Map(ivaJunio.map(v => [v.clienteId, v]))
+    const iibbJunio = vencimientos.filter(v =>
+      v.tipoObligacionId === 'iibb-local' && v.fecha?.startsWith('2026-06')
+    )
+    const iibbPorCliente  = new Map(iibbJunio.map(v => [v.clienteId, v]))
+    const allClienteIds   = new Set([...ivaPorCliente.keys(), ...iibbPorCliente.keys()])
+    return [...allClienteIds].map(cid => ({
+      nombre: clientes.find(c => c.id === cid)?.nombre || cid,
+      iva:    ivaPorCliente.get(cid),
+      iibb:   iibbPorCliente.get(cid),
+    }))
+  }, [ivaJunio, vencimientos, clientes])
 
   // ── 5. Tipo iva-mensual almacenado ─────────────────────────────────────────
   const tipoIva = tipos.find(t => t.id === 'iva-mensual')
@@ -172,6 +187,36 @@ export default function Diagnostico() {
           </div>
         )}
       </section>
+
+      {/* ── Coexistencia IVA + IIBB junio 2026 ── */}
+      {coexistenciaJunio.length > 0 && (
+        <section>
+          <h2 className="text-sm font-bold text-gray-700 uppercase mb-2">
+            Coexistencia IVA + IIBB en junio 2026 (mismo cliente)
+          </h2>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full text-xs">
+              <thead>
+                <tr>{['Cliente','IVA fecha','IVA estado','IIBB fecha','IIBB estado','¿Coexisten?'].map(h => <th key={h} className={th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {coexistenciaJunio.map(({ nombre, iva, iibb }) => (
+                  <tr key={nombre} className="border-t border-gray-100">
+                    <td className={`${row} font-semibold`}>{nombre}</td>
+                    <td className={`${row} ${iva ? 'text-green-700 font-bold' : 'text-red-500'}`}>{iva?.fecha || '✗ no existe'}</td>
+                    <td className={row}>{iva?.estado || '—'}</td>
+                    <td className={`${row} ${iibb ? 'text-green-700 font-bold' : 'text-gray-400'}`}>{iibb?.fecha || '—'}</td>
+                    <td className={row}>{iibb?.estado || '—'}</td>
+                    <td className={`${row} font-bold ${iva && iibb ? 'text-green-700' : iva ? 'text-blue-600' : 'text-red-600'}`}>
+                      {iva && iibb ? '✓ ambos' : iva ? 'solo IVA' : 'solo IIBB'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* ── Todos los tipos almacenados ── */}
       <section>

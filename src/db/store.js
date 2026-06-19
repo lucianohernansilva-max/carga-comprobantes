@@ -214,6 +214,25 @@ export const limpiarVencimientosMonotributo = () => {
   if (filtrados.length !== venc.length) persist(KEYS.vencimientos, filtrados)
 }
 
+// Elimina vencimientos pendientes/vencidos de iva-mensual para clientes RI,
+// permitiendo regenerarlos con datos correctos después de sincronizar tipos.
+export const limpiarVencimientosIVA = () => {
+  const clienteIds = new Set(
+    getClientes().filter(c => c.condicionFiscal === 'responsable_inscripto').map(c => c.id)
+  )
+  if (clienteIds.size === 0) return
+  const venc = load(KEYS.vencimientos) || []
+  const filtrados = venc.filter(v =>
+    !(v.tipoObligacionId === 'iva-mensual' &&
+      clienteIds.has(v.clienteId) &&
+      ['pendiente', 'vencido'].includes(v.estado))
+  )
+  if (filtrados.length !== venc.length) {
+    console.debug('[Cleanup] Eliminados %d vencimientos IVA para regenerar', venc.length - filtrados.length)
+    persist(KEYS.vencimientos, filtrados)
+  }
+}
+
 // Elimina vencimientos de tipos que no corresponden a la condición fiscal del cliente.
 // Por ejemplo: elimina monotributo-cuota de clientes RI.
 export const limpiarVencimientosNoCorrespondientes = () => {
